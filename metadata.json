@@ -1,0 +1,7 @@
+{
+  "name": "نظام الائتمان والتحصيل",
+  "description": "منظومة سحابية متكاملة لإدارة الائتمان والتحصيل والحسابات المدينة مع متابعة أعمار الديون والموافقات الائتمانية وإدارة المخاطر",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

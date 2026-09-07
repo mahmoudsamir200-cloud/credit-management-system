@@ -1,0 +1,93 @@
+{
+  "entities": {
+    "customer": {
+      "title": "Customer",
+      "description": "A client or company debtor in the accounts receivable system",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "creditLimit": { "type": "number" },
+        "paymentTermsDays": { "type": "number" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "code", "name", "creditLimit", "paymentTermsDays"]
+    },
+    "invoice": {
+      "title": "Invoice",
+      "description": "An accounts receivable invoice with aging status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "axReference": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "remainingAmount": { "type": "number" },
+        "issueDate": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["paid", "partial", "unpaid", "overdue"] },
+        "notes": { "type": "string" },
+        "attachmentName": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "invoiceNumber", "customerId", "customerName", "totalAmount", "paidAmount", "remainingAmount", "issueDate", "dueDate", "status"]
+    },
+    "payment": {
+      "title": "Payment",
+      "description": "A settlement or collection transaction recorded against an invoice",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceId": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "amount": { "type": "number" },
+        "paymentDate": { "type": "string" },
+        "paymentMethod": { "type": "string", "enum": ["cash", "cheque", "bank_transfer", "deposit"] },
+        "referenceNumber": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "invoiceId", "invoiceNumber", "customerId", "customerName", "amount", "paymentDate", "paymentMethod", "referenceNumber"]
+    },
+    "activityLog": {
+      "title": "ActivityLog",
+      "description": "System event audit trail entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "amount": { "type": "number" }
+      },
+      "required": ["id", "type", "title", "details", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/customers/{customerId}": {
+      "schema": "customer",
+      "description": "Collection of customer ledger records"
+    },
+    "/invoices/{invoiceId}": {
+      "schema": "invoice",
+      "description": "Collection of company AR invoices"
+    },
+    "/payments/{paymentId}": {
+      "schema": "payment",
+      "description": "Collection of recorded invoice payments"
+    },
+    "/activityLogs/{logId}": {
+      "schema": "activityLog",
+      "description": "Collection of system activity entries"
+    }
+  }
+}
