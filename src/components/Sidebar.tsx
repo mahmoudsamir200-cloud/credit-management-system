@@ -22,7 +22,8 @@ import {
   History,
   ShieldAlert
 } from 'lucide-react';
-import { ActiveNavView } from '../types';
+import { ActiveNavView, CompanySettings } from '../types';
+import { UniGroupLogo } from './UniGroupLogo';
 
 interface SidebarProps {
   activeView: ActiveNavView;
@@ -30,6 +31,7 @@ interface SidebarProps {
   isOpenMobile: boolean;
   onCloseMobile: () => void;
   isCloudConnected?: boolean;
+  companySettings?: CompanySettings;
 }
 
 interface NavSection {
@@ -49,6 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
   isCloudConnected = true,
+  companySettings,
 }) => {
   // Keep track of which accordion categories are open
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -166,18 +169,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
           isOpenMobile ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
         }`}
       >
-        {/* Top Header inside Sidebar (Mobile close & Title) */}
-        <div className="p-4 border-b border-slate-800/80 flex items-center justify-between lg:hidden">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-blue-400" />
-            <span className="font-bold text-white text-sm">قائمة التنقل</span>
-          </div>
+        {/* Top Header inside Sidebar (Mobile close & Logo) */}
+        <div className="p-3 border-b border-slate-800/80 flex items-center justify-between lg:hidden">
+          <UniGroupLogo
+            size="sm"
+            variant="full"
+            customLogoUrl={companySettings?.logoUrl}
+            customCompanyName={companySettings?.companyName}
+          />
           <button 
             onClick={onCloseMobile}
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* Desktop Brand Header */}
+        <div 
+          onClick={() => handleSelectView('dashboard')}
+          className="hidden lg:flex items-center justify-between p-3.5 border-b border-slate-800/80 bg-[#09131d]/60 cursor-pointer hover:bg-slate-850 transition select-none"
+          title="الانتقال للرئيسية"
+        >
+          <UniGroupLogo
+            size="md"
+            variant="full"
+            customLogoUrl={companySettings?.logoUrl}
+            customCompanyName={companySettings?.companyName}
+          />
         </div>
 
         {/* Navigation Content */}

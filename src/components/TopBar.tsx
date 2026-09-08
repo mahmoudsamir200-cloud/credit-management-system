@@ -18,7 +18,8 @@ import {
   HelpCircle,
   Database
 } from 'lucide-react';
-import { Customer, Invoice, Payment, SystemNotification, ActiveNavView } from '../types';
+import { Customer, Invoice, Payment, SystemNotification, ActiveNavView, CompanySettings } from '../types';
+import { UniGroupLogo } from './UniGroupLogo';
 
 interface TopBarProps {
   onToggleSidebar: () => void;
@@ -33,6 +34,7 @@ interface TopBarProps {
   setActiveView: (view: ActiveNavView) => void;
   onClearAllData?: () => void;
   onResetDemoData?: () => void;
+  companySettings?: CompanySettings;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -48,6 +50,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   setActiveView,
   onClearAllData,
   onResetDemoData,
+  companySettings,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -115,19 +118,15 @@ export const TopBar: React.FC<TopBarProps> = ({
 
           <div 
             onClick={() => setActiveView('dashboard')}
-            className="flex items-center gap-2.5 cursor-pointer group"
+            className="cursor-pointer group hover:opacity-95 transition"
+            title="الانتقال إلى لوحة التحكم الرئيسية"
           >
-            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-base font-bold text-white tracking-tight leading-tight">
-                نظام الائتمان والتحصيل
-              </h1>
-              <p className="text-[11px] text-blue-300/80 font-medium leading-none mt-0.5">
-                إدارة ذكية .. تحصيل أفضل
-              </p>
-            </div>
+            <UniGroupLogo
+              size="md"
+              variant="full"
+              customLogoUrl={companySettings?.logoUrl}
+              customCompanyName={companySettings?.companyName}
+            />
           </div>
         </div>
 

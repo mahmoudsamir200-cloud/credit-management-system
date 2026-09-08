@@ -8,7 +8,8 @@ import {
   CreditApprovalRequest,
   PromiseToPay,
   CollectionTask,
-  SystemNotification
+  SystemNotification,
+  CompanySettings
 } from './types';
 import {
   calculateAging,
@@ -21,6 +22,8 @@ import {
   saveCollectionTasks,
   loadNotifications,
   saveNotifications,
+  loadCompanySettings,
+  saveCompanySettings,
 } from './utils/storage';
 import {
   subscribeToCustomers,
@@ -63,6 +66,12 @@ export default function App() {
   const [promisesToPay, setPromisesToPay] = useState<PromiseToPay[]>(() => loadPromisesToPay());
   const [collectionTasks, setCollectionTasks] = useState<CollectionTask[]>(() => loadCollectionTasks());
   const [notifications, setNotifications] = useState<SystemNotification[]>(() => loadNotifications());
+  const [companySettings, setCompanySettings] = useState<CompanySettings>(() => loadCompanySettings());
+
+  const handleUpdateCompanySettings = (newSettings: CompanySettings) => {
+    setCompanySettings(newSettings);
+    saveCompanySettings(newSettings);
+  };
 
   const [isCloudConnected, setIsCloudConnected] = useState(false);
   const initialCheckDone = useRef(false);
@@ -443,6 +452,8 @@ export default function App() {
             setActiveView={setActiveView}
             onApproveCreditRequest={handleApproveCreditRequest}
             onRejectCreditRequest={handleRejectCreditRequest}
+            companySettings={companySettings}
+            onUpdateCompanySettings={handleUpdateCompanySettings}
           />
         );
 
@@ -577,6 +588,8 @@ export default function App() {
             logs={logs}
             onClearAllData={handleClearAllData}
             onResetDemoData={handleResetDemoData}
+            companySettings={companySettings}
+            onUpdateCompanySettings={handleUpdateCompanySettings}
           />
         );
 
@@ -593,6 +606,8 @@ export default function App() {
             setActiveView={setActiveView}
             onApproveCreditRequest={handleApproveCreditRequest}
             onRejectCreditRequest={handleRejectCreditRequest}
+            companySettings={companySettings}
+            onUpdateCompanySettings={handleUpdateCompanySettings}
           />
         );
     }
@@ -621,6 +636,7 @@ export default function App() {
         setActiveView={setActiveView}
         onClearAllData={handleClearAllData}
         onResetDemoData={handleResetDemoData}
+        companySettings={companySettings}
       />
 
       {/* Body: Sidebar + Main Content */}
@@ -632,6 +648,7 @@ export default function App() {
           isOpenMobile={isSidebarOpenMobile}
           onCloseMobile={() => setIsSidebarOpenMobile(false)}
           isCloudConnected={isCloudConnected}
+          companySettings={companySettings}
         />
 
         {/* Dynamic View Content Area */}

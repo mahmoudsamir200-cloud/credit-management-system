@@ -153,6 +153,16 @@ export interface SystemNotification {
   link?: string;
 }
 
+export interface CompanySettings {
+  companyName: string;
+  companyNameEn: string;
+  logoUrl: string;
+  slogan: string;
+  phone: string;
+  email: string;
+  address: string;
+}
+
 export type ActiveNavView = 
   | 'dashboard'
   // العملاء

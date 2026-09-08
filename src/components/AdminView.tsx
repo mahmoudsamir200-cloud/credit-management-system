@@ -14,15 +14,22 @@ import {
   X,
   BellRing,
   Database,
-  CloudCheck
+  CloudCheck,
+  Building2,
+  Upload,
+  Image as ImageIcon,
+  RotateCcw
 } from 'lucide-react';
-import { ActivityLog, ActiveNavView } from '../types';
+import { ActivityLog, ActiveNavView, CompanySettings } from '../types';
+import { DEFAULT_COMPANY_LOGO, DEFAULT_COMPANY_NAME, DEFAULT_COMPANY_NAME_AR } from '../utils/companyBranding';
 
 interface AdminViewProps {
   activeView: ActiveNavView;
   logs: ActivityLog[];
   onClearAllData?: () => void;
   onResetDemoData?: () => void;
+  companySettings?: CompanySettings;
+  onUpdateCompanySettings?: (settings: CompanySettings) => void;
 }
 
 interface SystemUser {
@@ -41,6 +48,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
   logs = [],
   onClearAllData,
   onResetDemoData,
+  companySettings,
+  onUpdateCompanySettings,
 }) => {
   const [users, setUsers] = useState<SystemUser[]>([
     {
@@ -96,6 +105,66 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [creditAlertThreshold, setCreditAlertThreshold] = useState(90);
   const [autoSuspendOnDays, setAutoSuspendOnDays] = useState(60);
   const [settingsSavedMessage, setSettingsSavedMessage] = useState(false);
+
+  // Company Branding & Logo State
+  const [companyName, setCompanyName] = useState(companySettings?.companyName || DEFAULT_COMPANY_NAME_AR);
+  const [companyNameEn, setCompanyNameEn] = useState(companySettings?.companyNameEn || DEFAULT_COMPANY_NAME);
+  const [logoUrl, setLogoUrl] = useState(companySettings?.logoUrl || DEFAULT_COMPANY_LOGO);
+  const [slogan, setSlogan] = useState(companySettings?.slogan || 'إدارة ذكية .. تحصيل أفضل');
+  const [brandingSavedMessage, setBrandingSavedMessage] = useState(false);
+
+  const handleLogoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert('حجم ملف اللوجو يجب ألا يتعدى 2 ميجابايت لسرعة التحميل.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setLogoUrl(event.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSaveBranding = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (onUpdateCompanySettings) {
+      onUpdateCompanySettings({
+        companyName: companyName.trim() || DEFAULT_COMPANY_NAME_AR,
+        companyNameEn: companyNameEn.trim() || DEFAULT_COMPANY_NAME,
+        logoUrl: logoUrl.trim() || DEFAULT_COMPANY_LOGO,
+        slogan: slogan.trim() || 'إدارة ذكية .. تحصيل أفضل',
+        phone: companySettings?.phone || '',
+        email: companySettings?.email || '',
+        address: companySettings?.address || '',
+      });
+    }
+    setBrandingSavedMessage(true);
+    setTimeout(() => setBrandingSavedMessage(false), 3500);
+  };
+
+  const handleResetToDefaultLogo = () => {
+    setLogoUrl(DEFAULT_COMPANY_LOGO);
+    setCompanyName(DEFAULT_COMPANY_NAME_AR);
+    setCompanyNameEn(DEFAULT_COMPANY_NAME);
+    if (onUpdateCompanySettings) {
+      onUpdateCompanySettings({
+        companyName: DEFAULT_COMPANY_NAME_AR,
+        companyNameEn: DEFAULT_COMPANY_NAME,
+        logoUrl: DEFAULT_COMPANY_LOGO,
+        slogan: 'إدارة ذكية .. تحصيل أفضل',
+        phone: companySettings?.phone || '',
+        email: companySettings?.email || '',
+        address: companySettings?.address || '',
+      });
+    }
+    setBrandingSavedMessage(true);
+    setTimeout(() => setBrandingSavedMessage(false), 3000);
+  };
 
   const handleAddUser = (e: React.FormEvent) => {
     e.preventDefault();
@@ -256,11 +325,159 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
       {/* System Settings View */}
       {isSettingsView && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6 max-w-3xl">
-          <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
-            <Settings className="w-5 h-5 text-blue-600" />
-            <h3 className="text-base font-bold text-slate-900">إعدادات السياسة الائتمانية والتنبيهات</h3>
+        <div className="space-y-6 max-w-3xl">
+          {/* Card 1: Company Logo & Corporate Branding */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-blue-600" />
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">شعار وهوية الشركة والمؤسسة</h3>
+                  <p className="text-[11px] text-slate-500">
+                    تخصيص اللوجو واسم الشركة ليظهر في الشريط العلوي، القائمة الجانبية، وكشوف الحساب المطبوعة
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleResetToDefaultLogo}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg transition"
+                title="استعادة شعار يوني جروب Uni-Group الأصلي"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>استعادة الشعار الافتراضي</span>
+              </button>
+            </div>
+
+            {brandingSavedMessage && (
+              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-fadeIn">
+                <Check className="w-4 h-4 text-emerald-600" />
+                <span>تم حفظ وتحديث شعار وهوية الشركة بنجاح وتطبيقه على النظام فوراً!</span>
+              </div>
+            )}
+
+            {/* Logo Preview & Live Card */}
+            <div className="bg-slate-900 rounded-xl p-4 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-white">
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-xl bg-white p-1.5 shadow-md flex items-center justify-center overflow-hidden border border-slate-700 shrink-0">
+                  <img
+                    src={logoUrl || DEFAULT_COMPANY_LOGO}
+                    alt={companyName}
+                    className="w-full h-full object-contain"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (target.src !== DEFAULT_COMPANY_LOGO) {
+                        target.src = DEFAULT_COMPANY_LOGO;
+                      }
+                    }}
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-white">{companyName || DEFAULT_COMPANY_NAME_AR}</span>
+                    <span className="text-xs text-blue-400 font-mono font-semibold">{companyNameEn || DEFAULT_COMPANY_NAME}</span>
+                  </div>
+                  <p className="text-[11px] text-blue-200/80 mt-0.5">{slogan || 'إدارة ذكية .. تحصيل أفضل'}</p>
+                  <span className="inline-block mt-1 text-[10px] text-emerald-400 font-medium bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
+                    معاينة حية للشعار المعتمد
+                  </span>
+                </div>
+              </div>
+
+              <label className="cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition shadow-xs">
+                <Upload className="w-4 h-4" />
+                <span>رفع لوجو جديد</span>
+                <input
+                  type="file"
+                  accept="image/png, image/jpeg, image/jpg, image/webp, image/svg+xml"
+                  onChange={handleLogoFileUpload}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
+            {/* Branding Edit Form */}
+            <form onSubmit={handleSaveBranding} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-slate-700 font-bold">اسم الشركة (بالعربية)</label>
+                  <input
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="مثال: يوني جروب أو اسم شركتكم"
+                    className="w-full border border-slate-300 rounded-lg p-2 text-slate-900 focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-slate-700 font-bold">اسم الشركة (بالإنجليزية)</label>
+                  <input
+                    type="text"
+                    value={companyNameEn}
+                    onChange={(e) => setCompanyNameEn(e.target.value)}
+                    placeholder="e.g. Uni-Group"
+                    className="w-full border border-slate-300 rounded-lg p-2 text-slate-900 focus:border-blue-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-slate-700 font-bold">رابط صورة الشعار (URL مباشر) أو مسار الصورة</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={logoUrl.startsWith('data:image') ? 'صورة مرفوعة (Base64 محلي)' : logoUrl}
+                    onChange={(e) => setLogoUrl(e.target.value)}
+                    placeholder="https://example.com/logo.png"
+                    className="flex-1 border border-slate-300 rounded-lg p-2 text-slate-900 focus:border-blue-500 font-mono text-[11px]"
+                  />
+                  <label className="cursor-pointer px-3 py-2 border border-slate-300 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold flex items-center gap-1 shrink-0">
+                    <Upload className="w-3.5 h-3.5 text-slate-500" />
+                    <span>تصفح ملف</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  يمكنك رفع صورة اللوجو مباشرة من جهازك (PNG أو JPG) أو كتابة رابط الشعار مباشرة على الإنترنت.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-slate-700 font-bold">الشعار اللفظي للنظام / الترويسة الفرعية</label>
+                <input
+                  type="text"
+                  value={slogan}
+                  onChange={(e) => setSlogan(e.target.value)}
+                  placeholder="مثال: إدارة ذكية .. تحصيل أفضل"
+                  className="w-full border border-slate-300 rounded-lg p-2 text-slate-900 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end">
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>تأكيد وحفظ الشعار والهوية</span>
+                </button>
+              </div>
+            </form>
           </div>
+
+          {/* Card 2: Credit Policy & Alert Settings */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
+              <Settings className="w-5 h-5 text-blue-600" />
+              <h3 className="text-base font-bold text-slate-900">إعدادات السياسة الائتمانية والتنبيهات</h3>
+            </div>
 
           {settingsSavedMessage && (
             <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
@@ -329,7 +546,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
           </form>
         </div>
-      )}
+      </div>
+    )}
 
       {/* Modal: Add System User */}
       {showAddUserModal && (

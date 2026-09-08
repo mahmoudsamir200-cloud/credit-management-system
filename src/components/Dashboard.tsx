@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Home, 
   Calendar, 
@@ -19,16 +19,25 @@ import {
   Eye, 
   MapPin,
   ExternalLink,
-  Plus
+  Plus,
+  CheckCircle2,
+  Upload,
+  ZoomIn,
+  Settings as SettingsIcon,
+  RefreshCw,
+  Sparkles,
+  Building2
 } from 'lucide-react';
 import { 
   Invoice, 
   Customer, 
   Payment, 
   CreditApprovalRequest, 
-  ActiveNavView 
+  ActiveNavView,
+  CompanySettings
 } from '../types';
 import { formatNumber } from '../utils/storage';
+import { UniGroupLogo } from './UniGroupLogo';
 
 interface DashboardProps {
   invoices: Invoice[];
@@ -41,6 +50,8 @@ interface DashboardProps {
   setActiveView: (view: ActiveNavView) => void;
   onApproveCreditRequest: (requestId: string) => void;
   onRejectCreditRequest: (requestId: string) => void;
+  companySettings?: CompanySettings;
+  onUpdateCompanySettings?: (newSettings: Partial<CompanySettings>) => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -54,8 +65,46 @@ export const Dashboard: React.FC<DashboardProps> = ({
   setActiveView,
   onApproveCreditRequest,
   onRejectCreditRequest,
+  companySettings,
+  onUpdateCompanySettings,
 }) => {
   const [hoveredMonth, setHoveredMonth] = useState<number | null>(null);
+  const [showLogoModal, setShowLogoModal] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [logoSuccessMsg, setLogoSuccessMsg] = useState('');
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      alert('حجم الصورة كبير جداً، يرجى اختيار ملف بحجم أقل من 3 ميجابايت');
+      return;
+    }
+    setIsUploadingLogo(true);
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      const result = uploadEvent.target?.result as string;
+      if (result && onUpdateCompanySettings) {
+        onUpdateCompanySettings({ logoUrl: result });
+        setLogoSuccessMsg('تم تحديث الشعار وتثبيته بنجاح!');
+        setTimeout(() => setLogoSuccessMsg(''), 3500);
+      }
+      setIsUploadingLogo(false);
+    };
+    reader.onerror = () => {
+      setIsUploadingLogo(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleResetLogo = () => {
+    if (onUpdateCompanySettings) {
+      onUpdateCompanySettings({ logoUrl: '/assets/unigroup_logo.jpg' });
+      setLogoSuccessMsg('تمت استعادة الشعار الرسمي الافتراضي!');
+      setTimeout(() => setLogoSuccessMsg(''), 3500);
+    }
+  };
 
   // Top 10 debtor customers matching screenshot
   const top10Customers = [...(customers || [])]
@@ -113,6 +162,130 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 text-xs font-semibold shadow-2xs">
           <Calendar className="w-4 h-4 text-blue-600" />
           <span>الأحد 06 سبتمبر 2026</span>
+        </div>
+      </div>
+
+      {/* Corporate Identity & Live Logo Showcase Banner */}
+      <div 
+        id="dashboard-corporate-brand-banner"
+        className="relative overflow-hidden bg-gradient-to-r from-[#0a1320] via-[#0f2137] to-[#0a1320] rounded-2xl border border-slate-700/70 p-4 sm:p-5 text-white shadow-xl"
+      >
+        {/* Decorative background glow */}
+        <div className="absolute top-0 right-1/4 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/4 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          
+          {/* Right Section: Live Logo Display & Details */}
+          <div className="flex items-center gap-4">
+            
+            {/* Live Logo Preview Box */}
+            <div 
+              onClick={() => setShowLogoModal(true)}
+              className="relative group cursor-pointer shrink-0"
+              title="انقر لتكبير ومعاينة الشعار بدقة عالية"
+            >
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white p-2 shadow-lg border-2 border-blue-400/50 flex items-center justify-center overflow-hidden transition-transform duration-200 group-hover:scale-105 group-hover:border-blue-400">
+                <img
+                  src={companySettings?.logoUrl || '/assets/unigroup_logo.jpg'}
+                  alt={companySettings?.companyName || 'شعار يوني جروب'}
+                  className="w-full h-full object-contain"
+                  referrerPolicy="no-referrer"
+                  loading="eager"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = '/assets/unigroup_logo.jpg';
+                  }}
+                />
+              </div>
+
+              {/* Hover Zoom Overlay */}
+              <div className="absolute inset-0 rounded-2xl bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-bold gap-1">
+                <ZoomIn className="w-5 h-5 text-blue-300" />
+                <span>تكبير</span>
+              </div>
+            </div>
+
+            {/* Corporate Info & Badges */}
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-xs">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  معاينة حية ومؤكدة للشعار
+                </span>
+                <span className="text-[11px] text-blue-300 font-mono px-2 py-0.5 rounded bg-blue-500/15 border border-blue-400/30">
+                  Uni-Group Enterprise
+                </span>
+                <span className="text-[11px] text-slate-400 hidden sm:inline-block">
+                  مفعل في كافة الشاشات وكشوف الحسابات الرسمية
+                </span>
+              </div>
+
+              <h1 className="text-lg sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+                <span>{companySettings?.companyName || 'مجموعة يوني جروب - Uni-Group'}</span>
+              </h1>
+
+              <p className="text-xs sm:text-sm text-slate-300 font-medium">
+                {companySettings?.slogan || 'نظام إدارة الائتمان والتحصيل ومتابعة المستحقات المالية'}
+              </p>
+
+              {logoSuccessMsg && (
+                <div className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-600/50 px-2.5 py-1 rounded-lg">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>{logoSuccessMsg}</span>
+                </div>
+              )}
+            </div>
+
+          </div>
+
+          {/* Left Section: Interactive Logo Actions */}
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-800">
+            {/* Hidden File Input for instant upload */}
+            <input
+              type="file"
+              ref={logoFileInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={handleLogoFileUpload}
+            />
+
+            <button
+              onClick={() => logoFileInputRef.current?.click()}
+              disabled={isUploadingLogo}
+              className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-blue-600/30 disabled:opacity-50"
+              title="رفع صورة شعار جديدة من جهازك"
+            >
+              <Upload className="w-4 h-4" />
+              <span>{isUploadingLogo ? 'جاري التحميل..' : 'رفع شعار جديد'}</span>
+            </button>
+
+            <button
+              onClick={() => setShowLogoModal(true)}
+              className="px-3 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5 shadow-xs"
+              title="معاينة الشعار بحجم كبير على خلفيات مختلفة"
+            >
+              <ZoomIn className="w-4 h-4 text-blue-400" />
+              <span>معاينة مكبرة</span>
+            </button>
+
+            <button
+              onClick={() => setActiveView('admin_settings')}
+              className="px-3 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5 shadow-xs"
+              title="الانتقال إلى إعدادات الهوية والبيانات المؤسسية"
+            >
+              <SettingsIcon className="w-4 h-4 text-slate-400" />
+              <span>إعدادات الهوية</span>
+            </button>
+
+            <button
+              onClick={handleResetLogo}
+              className="p-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition shadow-xs"
+              title="استعادة الشعار الرسمي الافتراضي (Uni-Group)"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
+
         </div>
       </div>
 
@@ -802,6 +975,100 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
       </div>
+
+      {/* Full Resolution Logo Showcase Modal */}
+      {showLogoModal && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setShowLogoModal(false)}
+        >
+          <div 
+            className="bg-[#0e1826] border border-slate-700 rounded-2xl max-w-lg w-full p-6 text-white shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
+                <h3 className="text-base font-bold text-white">معاينة الشعار وهوية الشركة المعتمدة</h3>
+              </div>
+              <button 
+                onClick={() => setShowLogoModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="py-6 space-y-5">
+              {/* Dark & Light Background Previews */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* On Dark Surface */}
+                <div className="p-4 rounded-xl bg-[#09111c] border border-slate-800 text-center space-y-2">
+                  <span className="text-[11px] font-semibold text-slate-400 block">على خلفية داكنة (شاشات النظام)</span>
+                  <div className="w-24 h-24 mx-auto rounded-xl bg-white p-2 shadow-inner flex items-center justify-center">
+                    <img 
+                      src={companySettings?.logoUrl || '/assets/unigroup_logo.jpg'} 
+                      alt="Uni-Group Logo Dark" 
+                      className="max-h-full max-w-full object-contain" 
+                    />
+                  </div>
+                </div>
+
+                {/* On Light Surface */}
+                <div className="p-4 rounded-xl bg-slate-100 border border-slate-200 text-center space-y-2">
+                  <span className="text-[11px] font-semibold text-slate-600 block">على خلفية فاتحة (الفواتير والطباعة)</span>
+                  <div className="w-24 h-24 mx-auto rounded-xl bg-white p-2 shadow-inner border border-slate-200 flex items-center justify-center">
+                    <img 
+                      src={companySettings?.logoUrl || '/assets/unigroup_logo.jpg'} 
+                      alt="Uni-Group Logo Light" 
+                      className="max-h-full max-w-full object-contain" 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Identity Specifications */}
+              <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5 text-xs">
+                <div className="flex justify-between text-slate-300">
+                  <span className="text-slate-400">اسم الشركة المعتمد:</span>
+                  <span className="font-bold text-white">{companySettings?.companyName || 'مجموعة يوني جروب - Uni-Group'}</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span className="text-slate-400">الاسم الإنجليزي:</span>
+                  <span className="font-mono text-blue-300">{companySettings?.companyNameEn || 'Uni-Group'}</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span className="text-slate-400">حالة الاعتماد:</span>
+                  <span className="font-bold text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    معتمد ومثبت في التخزين المحلي
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+              <button
+                onClick={() => {
+                  setShowLogoModal(false);
+                  logoFileInputRef.current?.click();
+                }}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md"
+              >
+                <Upload className="w-4 h-4" />
+                <span>رفع شعار بديل</span>
+              </button>
+
+              <button
+                onClick={() => setShowLogoModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition"
+              >
+                إغلاق المعاينة
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

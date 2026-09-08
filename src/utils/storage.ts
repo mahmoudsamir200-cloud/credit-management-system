@@ -7,8 +7,14 @@ import {
   CreditApprovalRequest, 
   PromiseToPay, 
   CollectionTask, 
-  SystemNotification 
+  SystemNotification,
+  CompanySettings 
 } from '../types';
+import { 
+  DEFAULT_COMPANY_LOGO, 
+  DEFAULT_COMPANY_NAME, 
+  DEFAULT_COMPANY_NAME_AR 
+} from './companyBranding';
 import { 
   INITIAL_CUSTOMERS, 
   INITIAL_INVOICES, 
@@ -29,6 +35,7 @@ const STORAGE_KEYS = {
   PROMISES_TO_PAY: 'ar_system_promises_to_pay_v2',
   COLLECTION_TASKS: 'ar_system_collection_tasks_v2',
   NOTIFICATIONS: 'ar_system_notifications_v2',
+  COMPANY_SETTINGS: 'ar_system_company_settings_v2',
   INITIALIZED: 'ar_system_initialized_flag_v2',
 };
 
@@ -350,4 +357,35 @@ export function exportInvoicesToCSV(invoices: Invoice[]): void {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+export const INITIAL_COMPANY_SETTINGS: CompanySettings = {
+  companyName: DEFAULT_COMPANY_NAME_AR,
+  companyNameEn: DEFAULT_COMPANY_NAME,
+  logoUrl: DEFAULT_COMPANY_LOGO,
+  slogan: 'إدارة ذكية .. تحصيل أفضل',
+  phone: '02-27900000',
+  email: 'credit@uni-group.com',
+  address: 'القاهرة - التجمع الخامس - المنطقة الصناعية',
+};
+
+export function loadCompanySettings(): CompanySettings {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEYS.COMPANY_SETTINGS);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return { ...INITIAL_COMPANY_SETTINGS, ...parsed };
+    }
+  } catch (e) {
+    console.error('Error loading company settings', e);
+  }
+  return INITIAL_COMPANY_SETTINGS;
+}
+
+export function saveCompanySettings(settings: CompanySettings): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.COMPANY_SETTINGS, JSON.stringify(settings));
+  } catch (e) {
+    console.error('Error saving company settings', e);
+  }
 }

@@ -17,6 +17,7 @@ import {
 import { Customer, Invoice, Payment } from '../types';
 import { formatCurrency } from '../utils/storage';
 import { CustomerDocumentsModal } from './CustomerDocumentsModal';
+import { UniGroupLogo } from './UniGroupLogo';
 
 interface CustomerLedgerProps {
   customers: Customer[];
@@ -263,8 +264,19 @@ export const CustomerLedger: React.FC<CustomerLedgerProps> = ({
       {/* Customer Account Statement Modal (كشف الحساب التفصيلي) */}
       {selectedCustomerForStatement && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-xl border border-stone-200 text-right space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-xl border border-stone-200 text-right space-y-4 max-h-[90vh] overflow-y-auto print:max-w-none print:shadow-none print:border-none print:p-0">
             
+            {/* Top Corporate Branding for Statement */}
+            <div className="flex items-center justify-between pb-3 border-b border-stone-200">
+              <div className="bg-slate-900 px-3 py-1.5 rounded-xl inline-block">
+                <UniGroupLogo size="sm" variant="full" />
+              </div>
+              <div className="text-left font-mono text-[11px] text-stone-500">
+                <div className="font-bold text-stone-700">كشف حساب عميل معتمد</div>
+                <div>تاريخ الإصدار: {new Date().toLocaleDateString('ar-EG')}</div>
+              </div>
+            </div>
+
             <div className="flex items-center justify-between pb-3 border-b border-stone-100">
               <div>
                 <div className="flex items-center gap-2">
