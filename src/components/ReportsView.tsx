@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   BarChart3, 
   Download, 
@@ -15,7 +15,7 @@ import {
   Building
 } from 'lucide-react';
 import { Customer, Invoice, Payment, AgingBucket, ActiveNavView } from '../types';
-import { formatNumber, exportInvoicesToCSV } from '../utils/storage';
+import { calculateCollectedAmount, formatNumber, exportInvoicesToCSV } from '../utils/storage';
 
 interface ReportsViewProps {
   activeView: ActiveNavView;
@@ -37,18 +37,31 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   // Calculations
   const totalDebt = invoices.reduce((acc, curr) => acc + curr.remainingAmount, 0);
   const totalInvoiced = invoices.reduce((acc, curr) => acc + curr.totalAmount, 0);
-  const totalCollected = invoices.reduce((acc, curr) => acc + curr.paidAmount, 0);
+  const totalCollected = calculateCollectedAmount(invoices);
   const collectionRate = totalInvoiced > 0 ? Math.round((totalCollected / totalInvoiced) * 100) : 0;
 
-  // Regional breakdown
-  const regionsList = [
-    { name: 'القاهرة', debt: 14500000, collected: 11200000, target: 15000000, rate: 77 },
-    { name: 'الجيزة', debt: 9200000, collected: 6900000, target: 9500000, rate: 75 },
-    { name: 'الدلتا', debt: 8750000, collected: 6800000, target: 9000000, rate: 78 },
-    { name: 'الصعيد', debt: 6300000, collected: 4600000, target: 6500000, rate: 73 },
-    { name: 'الإسكندرية', debt: 4500000, collected: 3600000, target: 4800000, rate: 80 },
-    { name: 'أخرى', debt: 2000000, collected: 1300000, target: 2000000, rate: 65 },
-  ];
+  const regionsList = useMemo(() => {
+    const regionMap = new Map<string, { name: string; debt: number; invoiced: number; collected: number; rate: number }>();
+
+    const customerById = new Map(customers.map((customer) => [customer.id, customer]));
+
+    invoices.forEach((invoice) => {
+      const customer = customerById.get(invoice.customerId);
+      const region = customer?.region || invoice.region || 'أخرى';
+      const existing = regionMap.get(region) || { name: region, debt: 0, invoiced: 0, collected: 0, rate: 0 };
+      existing.debt += invoice.remainingAmount || 0;
+      existing.invoiced += invoice.totalAmount || 0;
+      existing.collected += invoice.paidAmount || 0;
+      regionMap.set(region, existing);
+    });
+
+    const results = Array.from(regionMap.values()).map((region) => {
+      const rate = region.invoiced > 0 ? Math.min(100, Math.round((region.collected / region.invoiced) * 100)) : 0;
+      return { ...region, rate };
+    });
+
+    return results.length > 0 ? results : [{ name: 'أخرى', debt: 0, invoiced: 0, collected: 0, rate: 0 }];
+  }, [customers, invoices]);
 
   const handlePrint = () => {
     window.print();
@@ -122,7 +135,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs">
           <span className="text-xs text-slate-500 font-semibold">المتأخرات أكثر من 60 يوماً</span>
           <div className="text-xl font-black text-rose-600 mt-1 font-mono">
-            {(aging.find(a => a.range === '61-90')?.amount || 0 + (aging.find(a => a.range === '90+')?.amount || 0)).toLocaleString()} <span className="text-xs font-normal text-slate-500">ج.م</span>
+            {(
+              (aging.find((a) => a.key === '61-90')?.amount || 0) +
+              (aging.find((a) => a.key === '90+')?.amount || 0)
+            ).toLocaleString()} <span className="text-xs font-normal text-slate-500">ج.م</span>
           </div>
           <span className="text-[11px] text-rose-600 font-medium mt-0.5 block">تتطلب مخصصات ديون مشكوك فيها</span>
         </div>
@@ -152,7 +168,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 <th className="p-3">المنطقة / الفرع</th>
                 <th className="p-3">إجمالي المديونية</th>
                 <th className="p-3">المحصل الفعلي</th>
-                <th className="p-3">المستهدف الشهري</th>
+                <th className="p-3">إجمالي الفواتير</th>
                 <th className="p-3">نسبة الإنجاز</th>
                 <th className="p-3">مستوى المخاطر</th>
               </tr>
@@ -163,7 +179,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <td className="p-3 font-bold text-slate-900">{r.name}</td>
                   <td className="p-3 font-mono font-bold text-slate-800">{r.debt.toLocaleString()} ج.م</td>
                   <td className="p-3 font-mono font-bold text-emerald-600">{r.collected.toLocaleString()} ج.م</td>
-                  <td className="p-3 font-mono text-slate-600">{r.target.toLocaleString()} ج.م</td>
+                  <td className="p-3 font-mono text-slate-600">{r.invoiced.toLocaleString()} ج.م</td>
                   <td className="p-3">
                     <div className="flex items-center gap-2">
                       <div className="w-20 h-2 bg-slate-200 rounded-full overflow-hidden">
@@ -212,11 +228,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {aging.map((b) => {
-                const provRate = b.range === 'current' ? 1 : b.range === '1-30' ? 3 : b.range === '31-60' ? 10 : b.range === '61-90' ? 30 : 70;
+                const provRate = b.key === 'current' ? 1 : b.key === '1-30' ? 3 : b.key === '31-60' ? 10 : b.key === '61-90' ? 30 : 70;
                 const provAmount = Math.round((b.amount * provRate) / 100);
 
                 return (
-                  <tr key={b.range} className="hover:bg-slate-50/80 transition">
+                  <tr key={b.key} className="hover:bg-slate-50/80 transition">
                     <td className="p-3 font-bold text-slate-900">{b.label}</td>
                     <td className="p-3 font-mono font-bold text-slate-800">{b.amount.toLocaleString()} ج.م</td>
                     <td className="p-3 font-mono text-slate-600">{b.count} فاتورة</td>

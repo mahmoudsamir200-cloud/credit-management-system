@@ -304,6 +304,10 @@ export function calculateAging(invoices: Invoice[]): AgingBucket[] {
   return buckets;
 }
 
+export function calculateCollectedAmount(invoices: Invoice[]): number {
+  return invoices.reduce((total, invoice) => total + (invoice.paidAmount || 0), 0);
+}
+
 // Format Currency
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('ar-EG', {

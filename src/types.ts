@@ -7,6 +7,7 @@ export type CustomerDocumentType =
   | 'tax_card' 
   | 'contract' 
   | 'guarantee_cheque' 
+  | 'credit_delivery_receipt'
   | 'national_id' 
   | 'other';
 

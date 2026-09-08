@@ -51,48 +51,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   companySettings,
   onUpdateCompanySettings,
 }) => {
-  const [users, setUsers] = useState<SystemUser[]>([
-    {
-      id: 'usr-1',
-      name: 'محمود سمير',
-      role: 'مدير عام الائتمان والتحصيل',
-      department: 'إدارة الائتمان والمخاطر',
-      email: 'mahmoudsamir200@gmail.com',
-      phone: '01002345678',
-      status: 'نشط',
-      lastActive: 'الآن (متصل)',
-    },
-    {
-      id: 'usr-2',
-      name: 'أحمد محمد',
-      role: 'مسؤول تحصيل أول',
-      department: 'فريق التحصيل الميداني',
-      email: 'ahmed.mohamed@company.com',
-      phone: '01112345679',
-      status: 'نشط',
-      lastActive: 'منذ 15 دقيقة',
-    },
-    {
-      id: 'usr-3',
-      name: 'سارة علي',
-      role: 'أخصائي ائتمان ومخاطر',
-      department: 'إدارة الائتمان والمخاطر',
-      email: 'sara.ali@company.com',
-      phone: '01223456780',
-      status: 'نشط',
-      lastActive: 'منذ ساعتين',
-    },
-    {
-      id: 'usr-4',
-      name: 'محمد عبد الله',
-      role: 'محاسب عملاء وحسابات مدينة',
-      department: 'الإدارة المالية',
-      email: 'm.abdallah@company.com',
-      phone: '01098765432',
-      status: 'نشط',
-      lastActive: 'منذ 35 دقيقة',
-    },
-  ]);
+  const [users, setUsers] = useState<SystemUser[]>([]);
 
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [newUserName, setNewUserName] = useState('');
@@ -262,7 +221,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {users.map((u) => (
+                {users.length > 0 ? users.map((u) => (
                   <tr key={u.id} className="hover:bg-slate-50/80 transition">
                     <td className="p-3 font-bold text-slate-900">{u.name}</td>
                     <td className="p-3 font-semibold text-blue-700">{u.role}</td>
@@ -276,7 +235,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       </span>
                     </td>
                   </tr>
-                ))}
+                )) : (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-slate-500">
+                      لا توجد حسابات مستخدمين فعلية مرتبطة بالنظام حالياً
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

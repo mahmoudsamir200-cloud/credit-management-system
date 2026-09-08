@@ -150,7 +150,7 @@ export const AgingReport: React.FC<AgingReportProps> = ({
             placeholder="تصفية باسم العميل أو الكود..."
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
-            className="px-3 py-1.5 text-xs rounded-lg border border-stone-300 w-64 bg-white"
+            className="px-3 py-1.5 text-xs rounded-lg border border-stone-300 w-64 bg-white text-stone-900 placeholder:text-stone-400"
           />
           <span className="text-xs text-stone-500">
             عدد العملاء المدينين: <strong>{filteredRows.filter(r => r.total > 0).length}</strong>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Users, 
   Plus, 
@@ -10,16 +11,19 @@ import {
   CheckCircle2, 
   Clock,
   Printer,
+  Pencil,
   ChevronRight,
   ShieldCheck,
   FileCheck2
 } from 'lucide-react';
-import { Customer, Invoice, Payment } from '../types';
+import { ActiveNavView, CompanySettings, Customer, Invoice, Payment } from '../types';
 import { formatCurrency } from '../utils/storage';
+import { DOCUMENT_TYPE_LABELS } from '../utils/fileHelper';
 import { CustomerDocumentsModal } from './CustomerDocumentsModal';
 import { UniGroupLogo } from './UniGroupLogo';
 
 interface CustomerLedgerProps {
+  activeView?: ActiveNavView;
   customers: Customer[];
   invoices: Invoice[];
   payments: Payment[];
@@ -27,9 +31,11 @@ interface CustomerLedgerProps {
   onUpdateCustomer?: (customer: Customer) => void;
   onSelectCustomerForInvoice: (customer: Customer) => void;
   onSelectInvoiceForPayment: (invoice: Invoice) => void;
+  companySettings?: CompanySettings;
 }
 
 export const CustomerLedger: React.FC<CustomerLedgerProps> = ({
+  activeView = 'customers_directory',
   customers = [],
   invoices = [],
   payments = [],
@@ -37,11 +43,15 @@ export const CustomerLedger: React.FC<CustomerLedgerProps> = ({
   onUpdateCustomer,
   onSelectCustomerForInvoice,
   onSelectInvoiceForPayment,
+  companySettings,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomerForStatement, setSelectedCustomerForStatement] = useState<Customer | null>(null);
   const [selectedCustomerForDocs, setSelectedCustomerForDocs] = useState<Customer | null>(null);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
 
   // New customer form state
   const [newCode, setNewCode] = useState(`AX-C${Math.floor(100 + Math.random() * 900)}`);
@@ -59,6 +69,9 @@ export const CustomerLedger: React.FC<CustomerLedgerProps> = ({
     const totalOutstanding = custInvoices.reduce((acc, curr) => acc + curr.remainingAmount, 0);
     const overdueCount = custInvoices.filter((i) => i.status === 'overdue').length;
     const utilizationRate = c.creditLimit > 0 ? (totalOutstanding / c.creditLimit) * 100 : 0;
+    const documentTypes = new Set((c.documents || []).map((document) => document.type));
+    const requiredDocumentTypes = ['commercial_register', 'tax_card'] as const;
+    const missingRequiredDocuments = requiredDocumentTypes.filter((type) => !documentTypes.has(type));
 
     return {
       ...c,
@@ -68,37 +81,59 @@ export const CustomerLedger: React.FC<CustomerLedgerProps> = ({
       overdueCount,
       utilizationRate,
       invoiceCount: custInvoices.length,
+      documentCount: c.documents?.length || 0,
+      missingRequiredDocuments,
     };
   });
 
   const filteredCustomers = enrichedCustomers.filter((c) =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.phone.includes(searchQuery)
+    (activeView !== 'guarantees_documents' || c.missingRequiredDocuments.length > 0) &&
+    (c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.phone.includes(searchQuery))
   );
+  const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / pageSize));
+  const visibleCustomers = filteredCustomers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const handleSaveCustomer = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
 
     const cust: Customer = {
-      id: `cust-${Date.now()}`,
+      ...(editingCustomer || {}),
+      id: editingCustomer?.id || `cust-${Date.now()}`,
       code: newCode.trim() || `AX-C${Date.now().toString().slice(-3)}`,
       name: newName.trim(),
       phone: newPhone.trim() || '—',
       creditLimit: Number(newCreditLimit) || 100000,
       paymentTermsDays: Number(newTermsDays) || 30,
-      region: 'القاهرة',
-      status: 'جيد',
+      region: editingCustomer?.region || 'القاهرة',
+      status: editingCustomer?.status || 'جيد',
       notes: newNotes.trim() || undefined,
     };
 
-    onAddCustomer(cust);
+    if (editingCustomer && onUpdateCustomer) {
+      onUpdateCustomer(cust);
+    } else {
+      onAddCustomer(cust);
+    }
     setShowAddCustomerModal(false);
+    setEditingCustomer(null);
     setNewName('');
     setNewPhone('');
     setNewNotes('');
     setNewCode(`AX-C${Math.floor(100 + Math.random() * 900)}`);
+  };
+
+  const handleEditCustomer = (customer: Customer) => {
+    setEditingCustomer(customer);
+    setNewCode(customer.code);
+    setNewName(customer.name);
+    setNewPhone(customer.phone === '—' ? '' : customer.phone);
+    setNewCreditLimit(customer.creditLimit);
+    setNewTermsDays(customer.paymentTermsDays);
+    setNewNotes(customer.notes || '');
+    setShowAddCustomerModal(true);
   };
 
   // Statement data for selected customer
@@ -109,15 +144,74 @@ export const CustomerLedger: React.FC<CustomerLedgerProps> = ({
     ? payments.filter((p) => p.customerId === selectedCustomerForStatement.id)
     : [];
 
+  const statementModal = selectedCustomerForStatement ? (
+    <div className="customer-statement-overlay fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4 print:static print:bg-white print:p-0">
+      <div id="customer-statement" className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-xl border border-stone-200 text-right space-y-5 max-h-[90vh] overflow-y-auto print:max-w-none print:max-h-none print:shadow-none print:border-none print:rounded-none print:p-8">
+        {/* Statement content remains in the normal modal below. */}
+        <div className="flex items-start justify-between gap-6 pb-4 border-b-2 border-slate-900">
+          <div className="flex items-center gap-3">
+            <UniGroupLogo
+              size="md"
+              variant="full"
+              showSubtitle={false}
+              customLogoUrl={companySettings?.logoUrl}
+              customCompanyName={companySettings?.companyName}
+            />
+          </div>
+          <div className="text-left text-[11px] text-stone-500 leading-relaxed">
+            <div className="font-bold text-slate-900 text-sm">كشف حساب عميل</div>
+            <div>تاريخ الإصدار: {new Date().toLocaleDateString('ar-EG')}</div>
+            {companySettings?.phone && <div>هاتف: {companySettings.phone}</div>}
+            {companySettings?.email && <div>{companySettings.email}</div>}
+          </div>
+        </div>
+
+        <div className="flex items-start justify-between gap-4 pb-3 border-b border-stone-200">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-stone-100 text-stone-700">{selectedCustomerForStatement.code}</span>
+              <h3 className="text-base font-bold text-stone-900">كشف حساب: {selectedCustomerForStatement.name}</h3>
+            </div>
+            <p className="text-xs text-stone-500 mt-0.5">سجل جميع الفواتير الصادرة والمدفوعات المسددة والرصيد القائم</p>
+            {selectedCustomerForStatement.phone && <p className="text-[11px] text-stone-500 mt-1">هاتف العميل: {selectedCustomerForStatement.phone}</p>}
+          </div>
+          <div className="flex items-center gap-2 print:hidden">
+            <button onClick={() => setSelectedCustomerForDocs(selectedCustomerForStatement)} className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 font-semibold"><ShieldCheck className="w-3.5 h-3.5 text-amber-700" /><span>المستندات الرسمية ({selectedCustomerForStatement.documents?.length || 0})</span></button>
+            <button onClick={() => window.setTimeout(() => window.print(), 100)} className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-700"><Printer className="w-3.5 h-3.5" /><span>طباعة</span></button>
+            <button onClick={() => setSelectedCustomerForStatement(null)} className="text-stone-400 text-sm font-bold p-1">✕</button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-center print:bg-white">
+          <div className="p-2 rounded-lg border border-slate-200 bg-white"><span className="text-stone-500 block">إجمالي الفواتير</span><span className="font-bold text-stone-900 text-sm">{formatCurrency(statementInvoices.reduce((a, b) => a + b.totalAmount, 0))}</span></div>
+          <div className="p-2 rounded-lg border border-emerald-200 bg-emerald-50/60"><span className="text-stone-500 block">إجمالي المسدد</span><span className="font-bold text-emerald-700 text-sm">{formatCurrency(statementInvoices.reduce((a, b) => a + b.paidAmount, 0))}</span></div>
+          <div className="p-2 rounded-lg border border-amber-200 bg-amber-50/70"><span className="text-stone-500 block">الرصيد القائم المستحق</span><span className="font-bold text-red-700 text-sm">{formatCurrency(statementInvoices.reduce((a, b) => a + b.remainingAmount, 0))}</span></div>
+        </div>
+
+        <div>
+          <h4 className="text-xs font-bold text-stone-800 mb-2">الفواتير المستحقة والمسددة:</h4>
+          <div className="border border-stone-200 rounded-lg overflow-hidden">
+            <table className="w-full text-right text-xs"><thead className="bg-stone-50 text-stone-600 border-b border-stone-200"><tr><th className="p-2.5">رقم الفاتورة</th><th className="p-2.5">مرجع AX</th><th className="p-2.5">الإصدار</th><th className="p-2.5">الاستحقاق</th><th className="p-2.5">المبلغ</th><th className="p-2.5">المسدد</th><th className="p-2.5">المتبقي</th><th className="p-2.5 text-center">الحالة</th></tr></thead>
+              <tbody className="divide-y divide-stone-100">{statementInvoices.map((inv) => <tr key={inv.id}><td className="p-2.5 font-mono font-bold text-stone-900">{inv.invoiceNumber}</td><td className="p-2.5 font-mono text-stone-500">{inv.axReference || '—'}</td><td className="p-2.5 font-mono text-stone-600">{inv.issueDate}</td><td className="p-2.5 font-mono text-stone-600">{inv.dueDate}</td><td className="p-2.5 font-semibold text-stone-900">{formatCurrency(inv.totalAmount)}</td><td className="p-2.5 text-emerald-700 font-medium">{formatCurrency(inv.paidAmount)}</td><td className="p-2.5 font-bold text-amber-900">{formatCurrency(inv.remainingAmount)}</td><td className="p-2.5 text-center"><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${inv.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : inv.status === 'overdue' ? 'bg-red-100 text-red-800' : 'bg-stone-100 text-stone-700'}`}>{inv.status === 'paid' ? 'مسددة' : inv.status === 'overdue' ? 'متأخرة' : 'آجلة'}</span></td></tr>)}</tbody>
+            </table>
+          </div>
+        </div>
+
+        {statementPayments.length > 0 && <div><h4 className="text-xs font-bold text-stone-800 mb-2">سجل التحصيلات السابقة:</h4><div className="border border-stone-200 rounded-lg overflow-hidden"><table className="w-full text-right text-xs"><thead className="bg-stone-50 text-stone-600 border-b border-stone-200"><tr><th className="p-2.5">تاريخ السداد</th><th className="p-2.5">الفاتورة</th><th className="p-2.5">المبلغ</th><th className="p-2.5">طريقة الدفع</th><th className="p-2.5">رقم المرجع / الشيك</th></tr></thead><tbody className="divide-y divide-stone-100">{statementPayments.map((p) => <tr key={p.id}><td className="p-2.5 font-mono text-stone-700">{p.paymentDate}</td><td className="p-2.5 font-mono font-semibold text-stone-900">{p.invoiceNumber}</td><td className="p-2.5 font-bold text-emerald-700">{formatCurrency(p.amount)}</td><td className="p-2.5 text-stone-600">{p.paymentMethod === 'bank_transfer' ? 'تحويل بنكي' : p.paymentMethod === 'cheque' ? 'شيك' : 'نقدي'}</td><td className="p-2.5 font-mono text-stone-500">{p.referenceNumber}</td></tr>)}</tbody></table></div></div>}
+        <div className="pt-3 border-t border-stone-100 flex items-center justify-end print:mt-8"><button onClick={() => setSelectedCustomerForStatement(null)} className="px-4 py-2 rounded-lg border border-stone-300 text-stone-700 text-xs print:hidden">إغلاق</button></div>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div id="customers-view" className="space-y-5">
       
       {/* Top Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-stone-200 shadow-2xs">
         <div>
-          <h2 className="text-base font-bold text-stone-900">سجل العملاء وحدود الائتمان</h2>
+            <h2 className="text-base font-bold text-stone-900">{activeView === 'guarantees_documents' ? 'الضمانات والمستندات الناقصة' : 'سجل العملاء وحدود الائتمان'}</h2>
           <p className="text-xs text-stone-500 mt-0.5">
-            متابعة أرصدة مديونية العملاء وسقوف الائتمان المسموح بها مع كشوف الحساب
+            {activeView === 'guarantees_documents' ? 'متابعة العملاء الذين يحتاجون استكمال السجل التجاري أو البطاقة الضريبية وفتح مستنداتهم مباشرة' : 'متابعة أرصدة مديونية العملاء وسقوف الائتمان المسموح بها مع كشوف الحساب'}
           </p>
         </div>
 
@@ -137,147 +231,148 @@ export const CustomerLedger: React.FC<CustomerLedgerProps> = ({
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             placeholder="بحث باسم العميل، كود AX، أو رقم الهاتف..."
             className="w-full pr-9 pl-3 py-2 text-xs rounded-lg border border-stone-300 focus:outline-none focus:ring-1 focus:ring-amber-500 text-stone-800"
           />
         </div>
       </div>
 
-      {/* Customers Cards / Table Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredCustomers.map((c) => {
+      {/* Customers Data Table */}
+      <div className="bg-white rounded-xl border border-stone-200 shadow-2xs overflow-hidden">
+        <div className="px-4 py-3 border-b border-stone-200 bg-stone-50/70 flex items-center justify-between gap-3">
+          <div className="text-xs text-stone-500">
+            إجمالي العملاء: <strong className="text-stone-900">{filteredCustomers.length}</strong>
+          </div>
+          <div className="text-[11px] text-stone-500">عرض {pageSize} عميلاً في الصفحة</div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1050px] text-right text-xs">
+            <thead className="bg-stone-50 text-stone-600 border-b border-stone-200">
+              <tr>
+                <th className="p-3 font-bold">العميل</th>
+                <th className="p-3 font-bold">الهاتف</th>
+                <th className="p-3 font-bold">المديونية</th>
+                <th className="p-3 font-bold">الحد الائتماني</th>
+                <th className="p-3 font-bold">الاستخدام</th>
+                <th className="p-3 font-bold">المتأخرات</th>
+                <th className="p-3 font-bold">المستندات</th>
+                <th className="p-3 font-bold text-center">الإجراءات</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {visibleCustomers.map((c) => {
           const isOverLimit = c.totalOutstanding > c.creditLimit;
           const isNearLimit = c.utilizationRate >= 80 && !isOverLimit;
 
           return (
-            <div
+            <tr
               key={c.id}
-              className="bg-white rounded-xl p-5 border border-stone-200 shadow-2xs flex flex-col justify-between hover:border-amber-300 transition"
+              className="hover:bg-amber-50/30 transition"
             >
-              <div>
-                {/* Card Header */}
-                <div className="flex items-start justify-between gap-2 pb-3 border-b border-stone-100">
+              <td className="p-3">
+                <div className="flex items-center gap-2">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-stone-100 text-stone-700">
-                        {c.code}
-                      </span>
-                      {c.overdueCount > 0 && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-800">
-                          {c.overdueCount} متأخرة
-                        </span>
-                      )}
-                    </div>
-                    <h3 className="font-bold text-stone-900 text-sm mt-1">{c.name}</h3>
+                    <div className="font-bold text-stone-900">{c.name}</div>
+                    <div className="font-mono text-[10px] text-stone-500">{c.code} · {c.region}</div>
                   </div>
-
-                  {c.phone && (
-                    <div className="text-stone-400 hover:text-stone-600 text-xs flex items-center gap-1 font-mono">
-                      <Phone className="w-3 h-3" />
-                      <span>{c.phone}</span>
-                    </div>
-                  )}
+                  {c.overdueCount > 0 && <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-[10px] font-bold">{c.overdueCount} متأخرة</span>}
                 </div>
-
-                {/* Financial Summary */}
-                <div className="py-3 space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-stone-500">المديونية الحالية:</span>
-                    <strong className={`font-bold ${c.totalOutstanding > 0 ? 'text-amber-900' : 'text-stone-700'}`}>
-                      {formatCurrency(c.totalOutstanding)}
-                    </strong>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-stone-500">سقف الائتمان:</span>
-                    <span className="font-mono text-stone-700 font-semibold">{formatCurrency(c.creditLimit)}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-stone-500">فترة الآجل المعتادة:</span>
-                    <span className="text-stone-700">{c.paymentTermsDays} يوم</span>
-                  </div>
-
-                  {/* Credit Utilization Bar */}
-                  <div className="pt-1">
-                    <div className="flex items-center justify-between text-[11px] mb-1">
-                      <span className="text-stone-500">استهلاك الائتمان</span>
-                      <span className={`font-mono font-bold ${isOverLimit ? 'text-red-700' : isNearLimit ? 'text-amber-700' : 'text-emerald-700'}`}>
-                        {c.utilizationRate.toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="h-2 w-full bg-stone-100 rounded-full overflow-hidden">
-                      <div
-                        style={{ width: `${Math.min(100, c.utilizationRate)}%` }}
-                        className={`h-full rounded-full transition-all ${
-                          isOverLimit ? 'bg-red-600' : isNearLimit ? 'bg-amber-500' : 'bg-emerald-500'
-                        }`}
-                      />
-                    </div>
-                    {isOverLimit && (
-                      <div className="flex items-center gap-1 text-[10px] font-bold text-red-600 mt-1">
-                        <AlertTriangle className="w-3 h-3" />
-                        <span>تجاوز سقف الائتمان بمقدار {formatCurrency(c.totalOutstanding - c.creditLimit)}</span>
-                      </div>
-                    )}
-                  </div>
+              </td>
+              <td className="p-3 font-mono text-stone-600">{c.phone || '—'}</td>
+              <td className="p-3 font-mono font-bold text-amber-900">{formatCurrency(c.totalOutstanding)}</td>
+              <td className="p-3 font-mono text-stone-700">{formatCurrency(c.creditLimit)}</td>
+              <td className="p-3 min-w-[150px]">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className={`font-mono font-bold ${isOverLimit ? 'text-red-700' : isNearLimit ? 'text-amber-700' : 'text-emerald-700'}`}>{c.utilizationRate.toFixed(1)}%</span>
+                  {isOverLimit && <AlertTriangle className="w-3.5 h-3.5 text-red-600" />}
                 </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="pt-3 border-t border-stone-100 flex items-center justify-between gap-1.5 flex-wrap">
-                <button
+                <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden"><div style={{ width: `${Math.min(100, c.utilizationRate)}%` }} className={`h-full rounded-full ${isOverLimit ? 'bg-red-600' : isNearLimit ? 'bg-amber-500' : 'bg-emerald-500'}`} /></div>
+              </td>
+              <td className="p-3 font-mono text-red-700">{c.overdueCount > 0 ? `${c.overdueCount} فاتورة` : 'لا يوجد'}</td>
+              <td className="p-3">
+                <span className={`inline-flex items-center gap-1 text-[10px] font-bold ${c.missingRequiredDocuments.length === 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {c.missingRequiredDocuments.length === 0 ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+                  {c.missingRequiredDocuments.length === 0 ? `مكتمل (${c.documentCount})` : `ناقص ${c.missingRequiredDocuments.length}`}
+                </span>
+              </td>
+              <td className="p-3">
+                <div className="flex items-center justify-center gap-1.5">
+                  <button
                   onClick={() => setSelectedCustomerForStatement(c)}
-                  className="flex-1 py-1.5 px-2 rounded-lg border border-stone-200 text-stone-700 hover:bg-stone-50 text-xs font-semibold transition text-center whitespace-nowrap"
+                  className="px-2 py-1 rounded border border-stone-200 text-stone-700 hover:bg-stone-50 text-[11px] font-semibold whitespace-nowrap"
                 >
                   كشف الحساب
                 </button>
-
                 <button
                   onClick={() => setSelectedCustomerForDocs(c)}
-                  className="inline-flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold transition whitespace-nowrap"
-                  title="عرض وإرفاق السجل التجاري والبطاقة الضريبية والمستندات"
+                  className="p-1.5 rounded border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800"
+                  title="المستندات"
                 >
                   <ShieldCheck className="w-3.5 h-3.5 text-amber-700" />
-                  <span>المستندات</span>
-                  {c.documents && c.documents.length > 0 && (
-                    <span className="w-4 h-4 rounded-full bg-amber-700 text-white text-[10px] flex items-center justify-center font-bold">
-                      {c.documents.length}
-                    </span>
-                  )}
                 </button>
-
+                <button
+                  onClick={() => handleEditCustomer(c)}
+                  className="p-1.5 rounded border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800"
+                  title="تعديل بيانات العميل"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
                 <button
                   onClick={() => onSelectCustomerForInvoice(c)}
-                  className="py-1.5 px-2.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold transition whitespace-nowrap"
+                  className="p-1.5 rounded bg-stone-900 hover:bg-stone-800 text-white"
                   title="إصدار فاتورة جديدة لهذا العميل"
                 >
                   + فاتورة
                 </button>
-              </div>
-            </div>
+                </div>
+              </td>
+            </tr>
           );
-        })}
+              })}
+              {visibleCustomers.length === 0 && <tr><td colSpan={8} className="p-10 text-center text-stone-500">لا توجد نتائج مطابقة للبحث</td></tr>}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-stone-200 bg-stone-50/50 text-xs">
+          <span className="text-stone-500">صفحة {currentPage} من {totalPages}</span>
+          <div className="flex items-center gap-2">
+            <button type="button" disabled={currentPage === 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} className="px-3 py-1.5 rounded border border-stone-300 bg-white text-stone-700 disabled:opacity-40">السابق</button>
+            <button type="button" disabled={currentPage === totalPages} onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} className="px-3 py-1.5 rounded border border-stone-300 bg-white text-stone-700 disabled:opacity-40">التالي</button>
+          </div>
+        </div>
       </div>
 
       {/* Customer Account Statement Modal (كشف الحساب التفصيلي) */}
       {selectedCustomerForStatement && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-xl border border-stone-200 text-right space-y-4 max-h-[90vh] overflow-y-auto print:max-w-none print:shadow-none print:border-none print:p-0">
+        <div className="customer-statement-inline hidden">
+          <div id="customer-statement" className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-xl border border-stone-200 text-right space-y-5 max-h-[90vh] overflow-y-auto print:max-w-none print:max-h-none print:shadow-none print:border-none print:rounded-none print:p-8">
             
             {/* Top Corporate Branding for Statement */}
-            <div className="flex items-center justify-between pb-3 border-b border-stone-200">
-              <div className="bg-slate-900 px-3 py-1.5 rounded-xl inline-block">
-                <UniGroupLogo size="sm" variant="full" />
+            <div className="flex items-start justify-between gap-6 pb-4 border-b-2 border-slate-900">
+              <div className="flex items-center gap-3">
+                <UniGroupLogo
+                  size="md"
+                  variant="full"
+                  showSubtitle={false}
+                  customLogoUrl={companySettings?.logoUrl}
+                  customCompanyName={companySettings?.companyName}
+                />
               </div>
-              <div className="text-left font-mono text-[11px] text-stone-500">
-                <div className="font-bold text-stone-700">كشف حساب عميل معتمد</div>
+              <div className="text-left text-[11px] text-stone-500 leading-relaxed">
+                <div className="font-bold text-slate-900 text-sm">كشف حساب عميل</div>
                 <div>تاريخ الإصدار: {new Date().toLocaleDateString('ar-EG')}</div>
+                {companySettings?.phone && <div>هاتف: {companySettings.phone}</div>}
+                {companySettings?.email && <div>{companySettings.email}</div>}
               </div>
             </div>
 
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+            <div className="flex items-start justify-between gap-4 pb-3 border-b border-stone-200">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-stone-100 text-stone-700">
@@ -290,9 +385,12 @@ export const CustomerLedger: React.FC<CustomerLedgerProps> = ({
                 <p className="text-xs text-stone-500 mt-0.5">
                   سجل جميع الفواتير الصادرة والمدفوعات المسددة والرصيد القائم
                 </p>
+                {selectedCustomerForStatement.phone && (
+                  <p className="text-[11px] text-stone-500 mt-1">هاتف العميل: {selectedCustomerForStatement.phone}</p>
+                )}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 print:hidden">
                 <button
                   onClick={() => setSelectedCustomerForDocs(selectedCustomerForStatement)}
                   className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold transition"
@@ -319,20 +417,20 @@ export const CustomerLedger: React.FC<CustomerLedgerProps> = ({
             </div>
 
             {/* Quick KPI Bar */}
-            <div className="grid grid-cols-3 gap-3 p-3 rounded-xl bg-stone-50 border border-stone-200 text-xs text-center">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-center print:bg-white">
+              <div className="p-2 rounded-lg border border-slate-200 bg-white">
                 <span className="text-stone-500 block">إجمالي الفواتير</span>
                 <span className="font-bold text-stone-900 text-sm">
                   {formatCurrency(statementInvoices.reduce((a, b) => a + b.totalAmount, 0))}
                 </span>
               </div>
-              <div>
+              <div className="p-2 rounded-lg border border-emerald-200 bg-emerald-50/60">
                 <span className="text-stone-500 block">إجمالي المسدد</span>
                 <span className="font-bold text-emerald-700 text-sm">
                   {formatCurrency(statementInvoices.reduce((a, b) => a + b.paidAmount, 0))}
                 </span>
               </div>
-              <div>
+              <div className="p-2 rounded-lg border border-amber-200 bg-amber-50/70">
                 <span className="text-stone-500 block">الرصيد القائم المستحق</span>
                 <span className="font-bold text-red-700 text-sm">
                   {formatCurrency(statementInvoices.reduce((a, b) => a + b.remainingAmount, 0))}
@@ -415,10 +513,11 @@ export const CustomerLedger: React.FC<CustomerLedgerProps> = ({
               </div>
             )}
 
-            <div className="pt-3 border-t border-stone-100 flex justify-end">
+            <div className="pt-3 border-t border-stone-100 flex items-center justify-between print:mt-8">
+              <span className="text-[10px] text-stone-400">هذا الكشف صادر من النظام بناءً على البيانات المسجلة حتى تاريخ الإصدار.</span>
               <button
                 onClick={() => setSelectedCustomerForStatement(null)}
-                className="px-4 py-2 rounded-lg border border-stone-300 text-stone-700 text-xs hover:bg-stone-50"
+                className="px-4 py-2 rounded-lg border border-stone-300 text-stone-700 text-xs hover:bg-stone-50 print:hidden"
               >
                 إغلاق
               </button>
@@ -433,8 +532,8 @@ export const CustomerLedger: React.FC<CustomerLedgerProps> = ({
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-stone-200 text-right space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <h3 className="text-base font-bold text-stone-900">إضافة عميل جديد</h3>
-              <button onClick={() => setShowAddCustomerModal(false)} className="text-stone-400 hover:text-stone-600">✕</button>
+              <h3 className="text-base font-bold text-stone-900">{editingCustomer ? 'تعديل بيانات العميل' : 'إضافة عميل جديد'}</h3>
+              <button onClick={() => { setShowAddCustomerModal(false); setEditingCustomer(null); }} className="text-stone-400 hover:text-stone-600">✕</button>
             </div>
 
             <form onSubmit={handleSaveCustomer} className="space-y-3 text-xs">
@@ -507,11 +606,11 @@ export const CustomerLedger: React.FC<CustomerLedgerProps> = ({
                   type="submit"
                   className="px-5 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs"
                 >
-                  حفظ العميل
+                  {editingCustomer ? 'حفظ التعديلات' : 'حفظ العميل'}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowAddCustomerModal(false)}
+                  onClick={() => { setShowAddCustomerModal(false); setEditingCustomer(null); }}
                   className="px-4 py-2 rounded-lg border border-stone-300 text-stone-700 text-xs"
                 >
                   إلغاء
@@ -540,6 +639,7 @@ export const CustomerLedger: React.FC<CustomerLedgerProps> = ({
         />
       )}
 
+      {statementModal && createPortal(statementModal, document.body)}
     </div>
   );
 };

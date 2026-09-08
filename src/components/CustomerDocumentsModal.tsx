@@ -198,6 +198,7 @@ export const CustomerDocumentsModal: React.FC<CustomerDocumentsModalProps> = ({
                       <option value="tax_card">البطاقة الضريبية</option>
                       <option value="contract">عقد الاتفاق / التوريد</option>
                       <option value="guarantee_cheque">شيك ضمان</option>
+                      <option value="credit_delivery_receipt">إقرار / ورق تسليم آجل</option>
                       <option value="national_id">بطاقة الرقم القومي للمفوض</option>
                       <option value="other">مستند آخر</option>
                     </select>

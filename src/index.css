@@ -1,1 +1,97 @@
 @import "tailwindcss";
+
+@media print {
+	@page {
+		margin: 12mm;
+	}
+
+	body > * {
+		display: none !important;
+	}
+
+	body > .customer-statement-overlay {
+		display: block !important;
+		visibility: visible !important;
+		position: static !important;
+		width: 100% !important;
+		height: auto !important;
+		background: #fff !important;
+	}
+
+	body > .customer-statement-overlay #customer-statement,
+	body > .customer-statement-overlay #customer-statement * {
+		display: revert !important;
+		visibility: visible !important;
+	}
+
+	body > .customer-statement-overlay #customer-statement {
+		position: relative !important;
+		width: 100% !important;
+		max-width: none !important;
+		height: auto !important;
+		max-height: none !important;
+		overflow: visible !important;
+		color: #111827 !important;
+		background: #fff !important;
+	}
+
+	.print\:hidden {
+		display: none !important;
+	}
+
+	#app-root {
+		display: block !important;
+		min-height: 0 !important;
+		background: #fff !important;
+	}
+
+	#app-root > header,
+	#app-root > #app-main-sidebar,
+	#app-root > .flex-1:not(:has(#customer-statement)) {
+		display: none !important;
+	}
+
+	#app-root > .flex-1:has(#customer-statement),
+	#app-root > .flex-1:has(#customer-statement) > main,
+	#app-root > .flex-1:has(#customer-statement) #customers-view,
+	#app-root > .flex-1:has(#customer-statement) .customer-statement-overlay,
+	#customer-statement,
+	#customer-statement * {
+		display: block !important;
+	}
+
+	#app-root > .flex-1:has(#customer-statement) {
+		overflow: visible !important;
+	}
+
+	#app-root > .flex-1:has(#customer-statement) > main {
+		overflow: visible !important;
+		padding: 0 !important;
+		background: #fff !important;
+	}
+
+	#app-root > .flex-1:has(#customer-statement) #customers-view > *:not(.customer-statement-overlay),
+	.customer-statement-overlay > *:not(#customer-statement) {
+		display: none !important;
+	}
+
+	.customer-statement-overlay {
+		position: static !important;
+		inset: auto !important;
+		padding: 0 !important;
+		background: #fff !important;
+	}
+
+	#customer-statement {
+		position: relative !important;
+		inset: auto !important;
+		width: 100% !important;
+		max-width: none !important;
+		overflow: visible !important;
+		margin: 0 auto !important;
+	}
+
+	body > .customer-statement-overlay #customer-statement .print\:hidden {
+		display: none !important;
+	}
+}

@@ -5,6 +5,7 @@ export const DOCUMENT_TYPE_LABELS: Record<CustomerDocumentType, string> = {
   tax_card: 'البطاقة الضريبية',
   contract: 'عقد الاتفاق / التوريد',
   guarantee_cheque: 'شيك ضمان',
+  credit_delivery_receipt: 'إقرار / ورق تسليم آجل',
   national_id: 'بطاقة الرقم القومي للمفوض',
   other: 'مستند آخر',
 };

@@ -1,34 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  ShieldCheck, 
-  Search, 
   Bell, 
   ChevronDown, 
   Menu, 
   Plus, 
   CreditCard, 
   User, 
-  FileText, 
-  X, 
-  CheckCircle2, 
   AlertTriangle,
   Info,
   LogOut,
   Settings as SettingsIcon,
-  HelpCircle,
   Database
 } from 'lucide-react';
-import { Customer, Invoice, Payment, SystemNotification, ActiveNavView, CompanySettings } from '../types';
+import { SystemNotification, ActiveNavView, CompanySettings } from '../types';
 import { UniGroupLogo } from './UniGroupLogo';
 
 interface TopBarProps {
   onToggleSidebar: () => void;
-  customers: Customer[];
-  invoices: Invoice[];
-  payments: Payment[];
   notifications: SystemNotification[];
-  onSelectCustomer: (customer: Customer) => void;
-  onSelectInvoice: (invoice: Invoice) => void;
   onOpenNewInvoice: () => void;
   onOpenPayment: () => void;
   setActiveView: (view: ActiveNavView) => void;
@@ -39,12 +28,7 @@ interface TopBarProps {
 
 export const TopBar: React.FC<TopBarProps> = ({
   onToggleSidebar,
-  customers = [],
-  invoices = [],
-  payments = [],
   notifications = [],
-  onSelectCustomer,
-  onSelectInvoice,
   onOpenNewInvoice,
   onOpenPayment,
   setActiveView,
@@ -52,21 +36,15 @@ export const TopBar: React.FC<TopBarProps> = ({
   onResetDemoData,
   companySettings,
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-  const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
   // Close dropdowns on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setIsSearchOpen(false);
-      }
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
         setIsNotifOpen(false);
       }
@@ -78,27 +56,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter search results
-  const trimmedQuery = searchQuery.trim().toLowerCase();
-  const safeCustomers = customers || [];
-  const safeInvoices = invoices || [];
   const safeNotifs = notifications || [];
-
-  const matchedCustomers = trimmedQuery
-    ? safeCustomers.filter(c => 
-        c.name.toLowerCase().includes(trimmedQuery) || 
-        c.code.toLowerCase().includes(trimmedQuery) ||
-        c.phone.includes(trimmedQuery)
-      ).slice(0, 4)
-    : [];
-
-  const matchedInvoices = trimmedQuery
-    ? safeInvoices.filter(inv => 
-        inv.invoiceNumber.toLowerCase().includes(trimmedQuery) || 
-        inv.customerName.toLowerCase().includes(trimmedQuery) ||
-        (inv.axReference && inv.axReference.toLowerCase().includes(trimmedQuery))
-      ).slice(0, 4)
-    : [];
 
   const unreadNotifsCount = safeNotifs.filter(n => !n.read).length;
 
@@ -128,104 +86,6 @@ export const TopBar: React.FC<TopBarProps> = ({
               customCompanyName={companySettings?.companyName}
             />
           </div>
-        </div>
-
-        {/* Center: Search Box */}
-        <div ref={searchRef} className="flex-1 max-w-xl relative hidden md:block">
-          <div className="relative">
-            <input
-              type="text"
-              id="global-system-search"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setIsSearchOpen(true);
-              }}
-              onFocus={() => setIsSearchOpen(true)}
-              placeholder="ابحث عن عميل .. فاتورة .. رقم مرجعي .."
-              className="w-full bg-slate-900/90 border border-slate-700/80 rounded-lg pr-9 pl-4 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-inner"
-            />
-            <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery('')}
-                className="absolute left-2.5 top-2.5 text-slate-400 hover:text-white"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          {/* Search Dropdown Results */}
-          {isSearchOpen && searchQuery.trim() && (
-            <div className="absolute top-full right-0 left-0 mt-1.5 bg-[#0f172a] border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 divide-y divide-slate-800">
-              {matchedCustomers.length === 0 && matchedInvoices.length === 0 ? (
-                <div className="p-4 text-center text-xs text-slate-400">
-                  لم يتم العثور على نتائج مطابقة لـ "{searchQuery}"
-                </div>
-              ) : (
-                <>
-                  {matchedCustomers.length > 0 && (
-                    <div className="p-2">
-                      <div className="px-2 py-1 text-[11px] font-semibold text-blue-400">العملاء</div>
-                      {matchedCustomers.map(c => (
-                        <button
-                          key={c.id}
-                          onClick={() => {
-                            onSelectCustomer(c);
-                            setIsSearchOpen(false);
-                            setSearchQuery('');
-                          }}
-                          className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-slate-800/80 text-right transition"
-                        >
-                          <div className="flex items-center gap-2">
-                            <User className="w-4 h-4 text-slate-400" />
-                            <div>
-                              <div className="text-xs font-semibold text-white">{c.name}</div>
-                              <div className="text-[10px] text-slate-400">{c.region} • {c.code}</div>
-                            </div>
-                          </div>
-                          <div className="text-left">
-                            <div className="text-xs font-bold text-amber-400">{(c.totalOutstanding || 0).toLocaleString()} ج.م</div>
-                            <div className="text-[10px] text-slate-400">مديونية قائمة</div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {matchedInvoices.length > 0 && (
-                    <div className="p-2">
-                      <div className="px-2 py-1 text-[11px] font-semibold text-blue-400">الفواتير</div>
-                      {matchedInvoices.map(inv => (
-                        <button
-                          key={inv.id}
-                          onClick={() => {
-                            onSelectInvoice(inv);
-                            setIsSearchOpen(false);
-                            setSearchQuery('');
-                          }}
-                          className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-slate-800/80 text-right transition"
-                        >
-                          <div className="flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-slate-400" />
-                            <div>
-                              <div className="text-xs font-semibold text-white">{inv.invoiceNumber}</div>
-                              <div className="text-[10px] text-slate-400">{inv.customerName}</div>
-                            </div>
-                          </div>
-                          <div className="text-left">
-                            <div className="text-xs font-bold text-emerald-400">{inv.remainingAmount.toLocaleString()} ج.م</div>
-                            <div className="text-[10px] text-slate-400">مستحق</div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Left Section: Actions, Notifications, User */}
@@ -270,7 +130,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-xs text-white">التنبيهات والإشعارات</span>
                     <span className="px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 text-[10px] font-bold">
-                      {notifications.length} جديدة
+                      {unreadNotifsCount} جديدة
                     </span>
                   </div>
                   <button 

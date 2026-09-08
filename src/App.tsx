@@ -37,7 +37,6 @@ import {
   deleteInvoiceFromCloud,
   batchImportInvoicesToCloud,
   clearAllCloudData,
-  seedDemoDataToCloud,
 } from './utils/firestoreService';
 import { testConnection } from './firebase';
 
@@ -49,6 +48,7 @@ import { PaymentModal } from './components/PaymentModal';
 import { NewInvoiceModal } from './components/NewInvoiceModal';
 import { ExcelImportModal } from './components/ExcelImportModal';
 import { CustomerLedger } from './components/CustomerLedger';
+import { CustomerProfile } from './components/CustomerProfile';
 import { AgingReport } from './components/AgingReport';
 import { PaymentList } from './components/PaymentList';
 import { ActivityLogView } from './components/ActivityLogView';
@@ -107,13 +107,8 @@ export default function App() {
         setInvoices(safeData);
         setIsCloudConnected(true);
 
-        // Check if totally fresh cloud database, seed demo data so user has an active view
-        if (!initialCheckDone.current && safeData.length === 0) {
-          initialCheckDone.current = true;
-          seedDemoDataToCloud().catch((e) => console.warn('Seed demo error:', e));
-        } else {
-          initialCheckDone.current = true;
-        }
+        // An empty cloud database is a valid real state; do not inject demo records.
+        initialCheckDone.current = true;
       },
       (err) => console.error('Cloud invoices sync error:', err)
     );
@@ -458,11 +453,10 @@ export default function App() {
         );
 
       case 'customers_directory':
-      case 'customers_profile':
-      case 'credit_limits':
       case 'guarantees_documents':
         return (
           <CustomerLedger
+            activeView={activeView}
             customers={customers}
             invoices={invoices}
             payments={payments}
@@ -470,10 +464,24 @@ export default function App() {
             onUpdateCustomer={handleUpdateCustomer}
             onSelectCustomerForInvoice={handleSelectCustomerForInvoice}
             onSelectInvoiceForPayment={handleOpenPaymentForInvoice}
+            companySettings={companySettings}
+          />
+        );
+
+      case 'customers_profile':
+        return (
+          <CustomerProfile
+            customers={customers}
+            invoices={invoices}
+            payments={payments}
+            companySettings={companySettings}
+            onUpdateCustomer={handleUpdateCustomer}
+            onSelectInvoiceForPayment={handleOpenPaymentForInvoice}
           />
         );
 
       case 'credit_positions':
+      case 'credit_limits':
       case 'credit_requests':
       case 'limit_increases':
       case 'credit_approvals':
@@ -482,6 +490,7 @@ export default function App() {
           <CreditManagementView
             activeView={activeView}
             customers={customers}
+            invoices={invoices}
             creditRequests={creditRequests}
             onApproveRequest={handleApproveCreditRequest}
             onRejectRequest={handleRejectCreditRequest}
@@ -622,12 +631,7 @@ export default function App() {
       {/* Top Header Navigation Bar */}
       <TopBar
         onToggleSidebar={() => setIsSidebarOpenMobile(!isSidebarOpenMobile)}
-        customers={customers}
-        invoices={invoices}
-        payments={payments}
         notifications={notifications}
-        onSelectCustomer={handleSelectCustomer}
-        onSelectInvoice={handleSelectInvoice}
         onOpenNewInvoice={() => setIsNewInvoiceModalOpen(true)}
         onOpenPayment={() => {
           setSelectedInvoiceForPayment(null);
@@ -649,6 +653,9 @@ export default function App() {
           onCloseMobile={() => setIsSidebarOpenMobile(false)}
           isCloudConnected={isCloudConnected}
           companySettings={companySettings}
+          customers={customers}
+          invoices={invoices}
+          creditRequests={creditRequests}
         />
 
         {/* Dynamic View Content Area */}

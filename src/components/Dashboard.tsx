@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Home, 
   Calendar, 
@@ -36,7 +36,7 @@ import {
   ActiveNavView,
   CompanySettings
 } from '../types';
-import { formatNumber } from '../utils/storage';
+import { calculateAging, calculateCollectedAmount, formatNumber } from '../utils/storage';
 import { UniGroupLogo } from './UniGroupLogo';
 
 interface DashboardProps {
@@ -70,46 +70,233 @@ export const Dashboard: React.FC<DashboardProps> = ({
 }) => {
   const [hoveredMonth, setHoveredMonth] = useState<number | null>(null);
 
-  // Top 10 debtor customers matching screenshot
-  const top10Customers = [...(customers || [])]
-    .sort((a, b) => (b.totalOutstanding || 0) - (a.totalOutstanding || 0))
-    .slice(0, 10);
+  const customerDebtSummary = useMemo(() => {
+    return (customers || []).map((customer) => {
+      const outstanding = (invoices || [])
+        .filter((invoice) => invoice.customerId === customer.id)
+        .reduce((sum, invoice) => sum + (invoice.remainingAmount || 0), 0);
 
-  // Invoices due today (matches screenshot list INV-1042 -> INV-1046)
-  const invoicesDueToday = (invoices || []).filter(i => i.isDueToday || i.status === 'unpaid').slice(0, 5);
+      const overdue = (invoices || [])
+        .filter((invoice) => invoice.customerId === customer.id && (invoice.status === 'overdue' || (invoice.daysOverdue || 0) > 0))
+        .reduce((sum, invoice) => sum + (invoice.remainingAmount || 0), 0);
 
-  // Recent payments
-  const recentPayments = [...(payments || [])]
-    .sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())
-    .slice(0, 4);
+      return {
+        ...customer,
+        totalOutstanding: outstanding,
+        overdueAmount: overdue,
+      };
+    });
+  }, [customers, invoices]);
 
-  // 6 months historical trend data
-  const trendMonths = [
-    { month: 'أبريل', debt: 27.2, collected: 17.5, rate: 64 },
-    { month: 'مايو', debt: 31.0, collected: 20.8, rate: 67 },
-    { month: 'يونيو', debt: 34.5, collected: 23.2, rate: 67 },
-    { month: 'يوليو', debt: 37.8, collected: 25.4, rate: 67 },
-    { month: 'أغسطس', debt: 41.5, collected: 31.5, rate: 76 },
-    { month: 'سبتمبر', debt: 45.2, collected: 34.4, rate: 76 },
-  ];
+  const totalOutstanding = useMemo(
+    () => (invoices || []).reduce((sum, invoice) => sum + (invoice.remainingAmount || 0), 0),
+    [invoices]
+  );
 
-  // Regions breakdown matching screenshot exactly
-  const regions = [
-    { name: 'القاهرة', amount: 14500000, percentage: 32, color: '#2563eb' },
-    { name: 'الجيزة', amount: 9200000, percentage: 20, color: '#0284c7' },
-    { name: 'الدلتا', amount: 8750000, percentage: 19, color: '#0d9488' },
-    { name: 'الصعيد', amount: 6300000, percentage: 14, color: '#16a34a' },
-    { name: 'الإسكندرية', amount: 4500000, percentage: 10, color: '#dc2626' },
-    { name: 'أخرى', amount: 2000000, percentage: 5, color: '#9333ea' },
-  ];
+  const totalOutstandingShort = useMemo(
+    () => totalOutstanding >= 1000000 ? `${(totalOutstanding / 1000000).toFixed(1)}M` : totalOutstanding.toLocaleString(),
+    [totalOutstanding]
+  );
 
-  // Debt Aging distribution matching screenshot
-  const agingSegments = [
-    { label: '0 - 30 يوم', percentage: 58, color: '#10b981' },
-    { label: '31 - 60 يوم', percentage: 18, color: '#3b82f6' },
-    { label: '61 - 90 يوم', percentage: 12, color: '#f59e0b' },
-    { label: 'أكثر من 90 يوم', percentage: 12, color: '#ef4444' },
-  ];
+  const totalInvoiced = useMemo(
+    () => (invoices || []).reduce((sum, invoice) => sum + (invoice.totalAmount || 0), 0),
+    [invoices]
+  );
+
+  const totalCollected = useMemo(
+    () => calculateCollectedAmount(invoices || []),
+    [invoices]
+  );
+
+  const overdueAmount = useMemo(
+    () => (invoices || [])
+      .filter((invoice) => invoice.status === 'overdue' || (invoice.daysOverdue || 0) > 0)
+      .reduce((sum, invoice) => sum + (invoice.remainingAmount || 0), 0),
+    [invoices]
+  );
+
+  const availableCredit = useMemo(() => {
+    return (customerDebtSummary || []).reduce((sum, customer) => {
+      const customerBalance = (invoices || [])
+        .filter((invoice) => invoice.customerId === customer.id)
+        .reduce((total, invoice) => total + (invoice.remainingAmount || 0), 0);
+      const remainingLimit = Math.max((customer.creditLimit || 0) - customerBalance, 0);
+      return sum + remainingLimit;
+    }, 0);
+  }, [customerDebtSummary, invoices]);
+
+  const dueTodayAmount = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return (invoices || [])
+      .filter((invoice) => {
+        if (invoice.remainingAmount <= 0) return false;
+        const dueDate = new Date(invoice.dueDate);
+        dueDate.setHours(0, 0, 0, 0);
+        return dueDate.getTime() === today.getTime();
+      })
+      .reduce((sum, invoice) => sum + (invoice.remainingAmount || 0), 0);
+  }, [invoices]);
+
+  const dueIn48HoursAmount = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return (invoices || [])
+      .filter((invoice) => {
+        if (invoice.remainingAmount <= 0) return false;
+        const dueDate = new Date(invoice.dueDate);
+        dueDate.setHours(0, 0, 0, 0);
+        const diffDays = (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+        return diffDays >= 0 && diffDays <= 2;
+      })
+      .reduce((sum, invoice) => sum + (invoice.remainingAmount || 0), 0);
+  }, [invoices]);
+
+  const dueIn48HoursInvoices = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return (invoices || []).filter((invoice) => {
+      if (invoice.remainingAmount <= 0) return false;
+      const dueDate = new Date(invoice.dueDate);
+      dueDate.setHours(0, 0, 0, 0);
+      const diffDays = (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+      return diffDays >= 0 && diffDays <= 2;
+    });
+  }, [invoices]);
+
+  const riskCounts = useMemo(() => {
+    const overdueInvoiceCount = (invoices || []).filter((invoice) => invoice.status === 'overdue' || (invoice.daysOverdue || 0) > 0).length;
+    const overLimitCustomersCount = (customers || []).filter((customer) => {
+      const customerOutstanding = (invoices || [])
+        .filter((invoice) => invoice.customerId === customer.id)
+        .reduce((sum, invoice) => sum + (invoice.remainingAmount || 0), 0);
+      return (customer.creditLimit || 0) > 0 && customerOutstanding > (customer.creditLimit || 0);
+    }).length;
+    const pendingApprovalsCount = (creditRequests || []).filter((request) => request.status === 'قيد المراجعة').length;
+    const suspendedCustomersCount = (customers || []).filter((customer) => customer.isSuspended).length;
+    const followUpCount = (customers || []).filter((customer) => (customer.status === 'يحتاج متابعة' || customer.status === 'حرج')).length;
+
+    return {
+      overdueInvoiceCount,
+      overLimitCustomersCount,
+      pendingApprovalsCount,
+      suspendedCustomersCount,
+      followUpCount,
+    };
+  }, [customers, invoices, creditRequests]);
+
+  const collectionRate = totalInvoiced > 0 ? (totalCollected / totalInvoiced) * 100 : 0;
+
+  const top10Customers = useMemo(
+    () => [...customerDebtSummary].sort((a, b) => (b.totalOutstanding || 0) - (a.totalOutstanding || 0)).slice(0, 10),
+    [customerDebtSummary]
+  );
+
+  const invoicesDueToday = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return (invoices || [])
+      .filter((invoice) => {
+        if (invoice.remainingAmount <= 0) return false;
+        const dueDate = new Date(invoice.dueDate);
+        dueDate.setHours(0, 0, 0, 0);
+        return dueDate.getTime() === today.getTime();
+      })
+      .slice(0, 5);
+  }, [invoices]);
+
+  const recentPayments = useMemo(
+    () => [...(payments || [])].sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime()).slice(0, 4),
+    [payments]
+  );
+
+  const trendMonths = useMemo(() => {
+    const result: { month: string; debt: number; collected: number; rate: number }[] = [];
+
+    for (let i = 5; i >= 0; i -= 1) {
+      const date = new Date();
+      date.setDate(1);
+      date.setMonth(date.getMonth() - i);
+      date.setHours(0, 0, 0, 0);
+
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = new Intl.DateTimeFormat('ar-EG', { month: 'long' }).format(date);
+
+      const debt = (invoices || [])
+        .filter((invoice) => {
+          const issueMonth = invoice.issueDate?.slice(0, 7);
+          return issueMonth === monthKey || invoice.dueDate?.slice(0, 7) === monthKey;
+        })
+        .reduce((sum, invoice) => sum + (invoice.remainingAmount || 0), 0);
+
+      const collected = (payments || [])
+        .filter((payment) => payment.paymentDate?.slice(0, 7) === monthKey)
+        .reduce((sum, payment) => sum + (payment.amount || 0), 0);
+
+      result.push({
+        month: monthLabel,
+        debt,
+        collected,
+        rate: debt > 0 ? (collected / debt) * 100 : 0,
+      });
+    }
+
+    return result;
+  }, [invoices, payments]);
+
+  const trendChartMax = useMemo(
+    () => Math.max(...trendMonths.flatMap((item) => [item.debt, item.collected]), 1),
+    [trendMonths]
+  );
+
+  const regions = useMemo(() => {
+    const map = new Map<string, { name: string; amount: number; color: string }>();
+    const palette = ['#2563eb', '#0284c7', '#0d9488', '#16a34a', '#dc2626', '#9333ea'];
+    const orderedNames = ['القاهرة', 'الجيزة', 'الدلتا', 'الصعيد', 'الإسكندرية', 'أخرى'];
+
+    const source = customerDebtSummary.length > 0 ? customerDebtSummary : customers;
+
+    source.forEach((customer, index) => {
+      const region = customer.region || 'أخرى';
+      const amount = (customer.totalOutstanding || 0) || 0;
+      if (!map.has(region)) {
+        map.set(region, {
+          name: region,
+          amount: 0,
+          color: palette[orderedNames.indexOf(region) >= 0 ? orderedNames.indexOf(region) : Math.min(index, palette.length - 1)],
+        });
+      }
+      map.get(region)!.amount += amount;
+    });
+
+    const data = Array.from(map.values()).sort((a, b) => b.amount - a.amount);
+    const total = data.reduce((sum, item) => sum + item.amount, 0);
+
+    return data.map((item) => ({
+      ...item,
+      percentage: total > 0 ? Math.round((item.amount / total) * 100) : 0,
+    }));
+  }, [customerDebtSummary, customers]);
+
+  const agingSegments = useMemo(() => {
+    const bucketData = calculateAging(invoices || []);
+    const total = bucketData.reduce((sum, bucket) => sum + bucket.amount, 0);
+
+    return bucketData
+      .filter((bucket) => bucket.amount > 0)
+      .map((bucket, index) => {
+        const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'];
+        return {
+          label: bucket.label,
+          percentage: total > 0 ? Math.round((bucket.amount / total) * 100) : 0,
+          color: colors[index] || '#64748b',
+        };
+      });
+  }, [invoices]);
 
   return (
     <div id="enterprise-dashboard" className="p-4 sm:p-6 space-y-6 text-right max-w-[1600px] mx-auto">
@@ -149,11 +336,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
           <div className="mt-2.5">
             <div className="text-base sm:text-lg font-black text-slate-900 leading-tight">
-              45,230,750 <span className="text-xs font-normal text-slate-500">ج.م</span>
+              {formatNumber(totalOutstanding)} <span className="text-xs font-normal text-slate-500">ج.م</span>
             </div>
             <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 mt-1">
               <ArrowUp className="w-3 h-3" />
-              <span>12% من الشهر الماضي</span>
+              <span>{Math.max(0, Math.round(collectionRate))}% من الشهر الماضي</span>
             </div>
           </div>
         </div>
@@ -168,11 +355,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
           <div className="mt-2.5">
             <div className="text-base sm:text-lg font-black text-blue-950 leading-tight">
-              18,750,000 <span className="text-xs font-normal text-blue-600">ج.م</span>
+              {formatNumber(availableCredit)} <span className="text-xs font-normal text-blue-600">ج.م</span>
             </div>
             <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 mt-1">
               <ArrowUp className="w-3 h-3" />
-              <span>8% من الشهر الماضي</span>
+              <span>{Math.max(0, Math.round((availableCredit / Math.max(totalInvoiced, 1)) * 100))}% من المجموع</span>
             </div>
           </div>
         </div>
@@ -187,11 +374,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
           <div className="mt-2.5">
             <div className="text-base sm:text-lg font-black text-rose-950 leading-tight">
-              12,340,200 <span className="text-xs font-normal text-rose-600">ج.م</span>
+              {formatNumber(overdueAmount)} <span className="text-xs font-normal text-rose-600">ج.م</span>
             </div>
             <div className="flex items-center gap-1 text-[10px] font-bold text-rose-600 mt-1">
               <ArrowUp className="w-3 h-3" />
-              <span>25% من الشهر الماضي</span>
+              <span>{riskCounts.overdueInvoiceCount} فاتورة متأخرة</span>
             </div>
           </div>
         </div>
@@ -206,11 +393,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
           <div className="mt-2.5">
             <div className="text-base sm:text-lg font-black text-amber-950 leading-tight">
-              4,850,000 <span className="text-xs font-normal text-amber-600">ج.م</span>
+              {formatNumber(dueTodayAmount)} <span className="text-xs font-normal text-amber-600">ج.م</span>
             </div>
             <div className="flex items-center gap-1 text-[10px] font-bold text-amber-600 mt-1">
               <ArrowUp className="w-3 h-3" />
-              <span>18% من الشهر الماضي</span>
+              <span>{invoicesDueToday.length} فاتورة مستحقة اليوم</span>
             </div>
           </div>
         </div>
@@ -225,11 +412,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
           <div className="mt-2.5">
             <div className="text-base sm:text-lg font-black text-teal-950 leading-tight">
-              7,620,500 <span className="text-xs font-normal text-teal-600">ج.م</span>
+              {formatNumber(dueIn48HoursAmount)} <span className="text-xs font-normal text-teal-600">ج.م</span>
             </div>
             <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 mt-1">
               <ArrowUp className="w-3 h-3" />
-              <span>10% من الشهر الماضي</span>
+              <span>{dueIn48HoursInvoices.length} فاتورة قريبة الاستحقاق</span>
             </div>
           </div>
         </div>
@@ -244,11 +431,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
           <div className="mt-2.5">
             <div className="text-base sm:text-lg font-black text-emerald-950 leading-tight">
-              76%
+              {Math.round(collectionRate)}%
             </div>
             <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 mt-1">
               <ArrowUp className="w-3 h-3" />
-              <span>6% من الشهر الماضي</span>
+              <span>{formatNumber(totalCollected)} محصلة</span>
             </div>
           </div>
         </div>
@@ -263,15 +450,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
           <div className="mt-2.5">
             <div className="text-base sm:text-lg font-black text-purple-950 leading-tight">
-              5
+              {riskCounts.suspendedCustomersCount}
             </div>
             <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 mt-1">
               <ArrowDown className="w-3 h-3" />
-              <span>2% من الشهر الماضي</span>
+              <span>{riskCounts.followUpCount} تحتاج متابعة</span>
             </div>
           </div>
         </div>
-
       </div>
 
       {/* Row 2: Charts & Risk Center */}
@@ -290,13 +476,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="w-full h-52 relative flex items-end">
             <svg viewBox="0 0 500 200" className="w-full h-full overflow-visible">
               {/* Horizontal Grid lines */}
-              {[0, 10, 20, 30, 40, 50].map((val, idx) => {
+              {[0, 10, 20, 30, 40, 50].map((val) => {
                 const y = 180 - (val / 50) * 160;
+                const axisValue = (trendChartMax * val) / 50;
                 return (
                   <g key={val}>
                     <line x1="40" y1={y} x2="480" y2={y} stroke="#f1f5f9" strokeWidth="1" />
                     <text x="30" y={y + 4} textAnchor="end" fontSize="10" fill="#94a3b8" fontFamily="sans-serif">
-                      {val}M
+                      {axisValue >= 1000000 ? `${(axisValue / 1000000).toFixed(1)}M` : Math.round(axisValue).toLocaleString()}
                     </text>
                   </g>
                 );
@@ -305,8 +492,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
               {/* Bars and Line points */}
               {trendMonths.map((item, idx) => {
                 const xCenter = 80 + idx * 70;
-                const debtHeight = (item.debt / 50) * 160;
-                const collHeight = (item.collected / 50) * 160;
+                const debtHeight = (item.debt / trendChartMax) * 160;
+                const collHeight = (item.collected / trendChartMax) * 160;
                 const rateY = 180 - (item.rate / 100) * 160;
 
                 return (
@@ -407,24 +594,30 @@ export const Dashboard: React.FC<DashboardProps> = ({
             {/* Donut Chart SVG */}
             <div className="relative w-36 h-36 shrink-0 flex items-center justify-center">
               <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                {/* SVG Donut Slices */}
-                {/* Circumference = 2 * PI * 38 = 238.76 */}
-                {/* القاهرة: 32% (strokeDasharray: 76.4 162.3) */}
-                <circle cx="50" cy="50" r="38" fill="transparent" stroke="#2563eb" strokeWidth="18" strokeDasharray="76.4 162.4" strokeDashoffset="0" />
-                {/* الجيزة: 20% (strokeDasharray: 47.7 191) */}
-                <circle cx="50" cy="50" r="38" fill="transparent" stroke="#0284c7" strokeWidth="18" strokeDasharray="47.7 191" strokeDashoffset="-76.4" />
-                {/* الدلتا: 19% (strokeDasharray: 45.3 193.4) */}
-                <circle cx="50" cy="50" r="38" fill="transparent" stroke="#0d9488" strokeWidth="18" strokeDasharray="45.3 193.4" strokeDashoffset="-124.1" />
-                {/* الصعيد: 14% (strokeDasharray: 33.4 205.3) */}
-                <circle cx="50" cy="50" r="38" fill="transparent" stroke="#16a34a" strokeWidth="18" strokeDasharray="33.4 205.3" strokeDashoffset="-169.4" />
-                {/* الإسكندرية: 10% (strokeDasharray: 23.8 214.9) */}
-                <circle cx="50" cy="50" r="38" fill="transparent" stroke="#dc2626" strokeWidth="18" strokeDasharray="23.8 214.9" strokeDashoffset="-202.8" />
-                {/* أخرى: 5% (strokeDasharray: 11.9 226.8) */}
-                <circle cx="50" cy="50" r="38" fill="transparent" stroke="#9333ea" strokeWidth="18" strokeDasharray="11.9 226.8" strokeDashoffset="-226.6" />
+                {regions.map((region, index) => {
+                  const circumference = 2 * Math.PI * 38;
+                  const offset = regions
+                    .slice(0, index)
+                    .reduce((sum, item) => sum + (item.percentage / 100) * circumference, 0);
+                  const segment = (region.percentage / 100) * circumference;
+                  return (
+                    <circle
+                      key={region.name}
+                      cx="50"
+                      cy="50"
+                      r="38"
+                      fill="transparent"
+                      stroke={region.color}
+                      strokeWidth="18"
+                      strokeDasharray={`${segment} ${circumference - segment}`}
+                      strokeDashoffset={-offset}
+                    />
+                  );
+                })}
               </svg>
               {/* Center Total */}
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-base font-black text-slate-800 leading-none">45.2M</span>
+                <span className="text-base font-black text-slate-800 leading-none">{totalOutstandingShort}</span>
                 <span className="text-[10px] text-slate-500 font-medium">ج.م</span>
               </div>
             </div>
@@ -471,7 +664,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <span className="text-xs font-semibold text-slate-700">فواتير متأخرة</span>
               </div>
               <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white font-bold text-xs">
-                23
+                {riskCounts.overdueInvoiceCount}
               </span>
             </button>
 
@@ -485,7 +678,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <span className="text-xs font-semibold text-slate-700">عملاء متجاوزون للحد الائتماني</span>
               </div>
               <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white font-bold text-xs">
-                7
+                {riskCounts.overLimitCustomersCount}
               </span>
             </button>
 
@@ -499,7 +692,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <span className="text-xs font-semibold text-slate-700">طلبات موافقة ائتمانية</span>
               </div>
               <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white font-bold text-xs">
-                4
+                {riskCounts.pendingApprovalsCount}
               </span>
             </button>
 
@@ -513,7 +706,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <span className="text-xs font-semibold text-slate-700">عملاء على إيقاف ائتماني</span>
               </div>
               <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white font-bold text-xs">
-                5
+                {riskCounts.suspendedCustomersCount}
               </span>
             </button>
 
@@ -527,7 +720,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <span className="text-xs font-semibold text-slate-700">شكايا/ضمانات تحتاج متابعة</span>
               </div>
               <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white font-bold text-xs">
-                3
+                {riskCounts.followUpCount}
               </span>
             </button>
           </div>
@@ -726,17 +919,29 @@ export const Dashboard: React.FC<DashboardProps> = ({
               {/* Donut Chart SVG */}
               <div className="relative w-32 h-32 shrink-0 flex items-center justify-center">
                 <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                  {/* 0-30: 58% (138.5) */}
-                  <circle cx="50" cy="50" r="38" fill="transparent" stroke="#10b981" strokeWidth="16" strokeDasharray="138.5 100.3" strokeDashoffset="0" />
-                  {/* 31-60: 18% (43.0) */}
-                  <circle cx="50" cy="50" r="38" fill="transparent" stroke="#3b82f6" strokeWidth="16" strokeDasharray="43.0 195.8" strokeDashoffset="-138.5" />
-                  {/* 61-90: 12% (28.7) */}
-                  <circle cx="50" cy="50" r="38" fill="transparent" stroke="#f59e0b" strokeWidth="16" strokeDasharray="28.7 210.1" strokeDashoffset="-181.5" />
-                  {/* 90+: 12% (28.7) */}
-                  <circle cx="50" cy="50" r="38" fill="transparent" stroke="#ef4444" strokeWidth="16" strokeDasharray="28.7 210.1" strokeDashoffset="-210.2" />
+                  {agingSegments.map((segment, index) => {
+                    const circumference = 2 * Math.PI * 38;
+                    const offset = agingSegments
+                      .slice(0, index)
+                      .reduce((sum, item) => sum + (item.percentage / 100) * circumference, 0);
+                    const segmentLength = (segment.percentage / 100) * circumference;
+                    return (
+                      <circle
+                        key={segment.label}
+                        cx="50"
+                        cy="50"
+                        r="38"
+                        fill="transparent"
+                        stroke={segment.color}
+                        strokeWidth="16"
+                        strokeDasharray={`${segmentLength} ${circumference - segmentLength}`}
+                        strokeDashoffset={-offset}
+                      />
+                    );
+                  })}
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                  <span className="text-sm font-black text-slate-800 leading-none">45.2M</span>
+                  <span className="text-sm font-black text-slate-800 leading-none">{totalOutstandingShort}</span>
                   <span className="text-[9px] text-slate-500">ج.م</span>
                 </div>
               </div>

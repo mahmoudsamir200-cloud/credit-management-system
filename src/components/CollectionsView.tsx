@@ -56,7 +56,7 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
   
   // New Promise state
   const [selectedCustId, setSelectedCustId] = useState(customers[0]?.id || '');
-  const [promiseAmount, setPromiseAmount] = useState(250000);
+  const [promiseAmount, setPromiseAmount] = useState(0);
   const [promisedDate, setPromisedDate] = useState(new Date().toISOString().slice(0, 10));
   const [contactPerson, setContactPerson] = useState('');
   const [collectorName, setCollectorName] = useState('أحمد محمد');
@@ -70,6 +70,10 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
 
   // Critical overdue invoices (overdue > 45 days)
   const criticalInvoices = invoices.filter(inv => inv.status === 'overdue' && (inv.daysOverdue || 0) > 45);
+  const completedTaskCount = collectionTasks.filter((task) => task.status === 'مكتمل').length;
+  const taskCompletionRate = collectionTasks.length > 0
+    ? Math.round((completedTaskCount / collectionTasks.length) * 100)
+    : 0;
 
   const handleCreatePromise = (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,7 +135,7 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
         <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs">
           <span className="text-xs text-slate-500 font-semibold">إجمالي وعود السداد هذا الأسبوع</span>
           <div className="text-lg font-black text-slate-900 mt-1 font-mono">
-            {promisesToPay.reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()} <span className="text-xs font-normal text-slate-500">ج.م</span>
+            {promisesToPay.reduce((acc, curr) => acc + (curr.promisedAmount ?? curr.amount ?? 0), 0).toLocaleString()} <span className="text-xs font-normal text-slate-500">ج.م</span>
           </div>
           <span className="text-[11px] text-emerald-600 font-semibold mt-0.5 block">
             {promisesToPay.filter(p => p.status === 'تم الوفاء').length} وعود تم تحصيلها بنجاح
@@ -149,9 +153,9 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
         <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs">
           <span className="text-xs text-slate-500 font-semibold">مهام المحصلين المكتملة اليوم</span>
           <div className="text-lg font-black text-blue-600 mt-1 font-mono">
-            {collectionTasks.filter(t => t.status === 'مكتمل').length} / {collectionTasks.length}
+            {completedTaskCount} / {collectionTasks.length}
           </div>
-          <span className="text-[11px] text-blue-600 block mt-0.5">بنسبة إنجاز 75%</span>
+          <span className="text-[11px] text-blue-600 block mt-0.5">بنسبة إنجاز {taskCompletionRate}%</span>
         </div>
 
         <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs">

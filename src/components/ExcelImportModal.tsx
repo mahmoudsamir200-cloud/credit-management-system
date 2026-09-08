@@ -6,7 +6,7 @@ interface ExcelImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   customers: Customer[];
-  onImportInvoices: (importedInvoices: Omit<Invoice, 'id' | 'paidAmount' | 'remainingAmount' | 'status' | 'daysOverdue'>[]) => void;
+  onImportInvoices: (importedInvoices: Invoice[]) => Promise<void> | void;
 }
 
 export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
@@ -103,32 +103,47 @@ INV-2024-009	AX-SO-89535	الشركة الهندسية للتجهيزات الف
     reader.readAsText(file);
   };
 
-  const handleConfirmImport = () => {
+  const handleConfirmImport = async () => {
     if (parsedRows.length === 0) return;
 
-    const newInvoices = parsedRows.map((r) => {
-      // Find matching customer or default
+    const unmatchedCustomers = parsedRows.filter((row) => !customers.some(
+      (customer) => customer.name.toLowerCase() === row.customerName.toLowerCase()
+    ));
+
+    if (unmatchedCustomers.length > 0) {
+      setError(`لا يمكن استيراد ${unmatchedCustomers.length} فاتورة: لم يتم العثور على عميل مطابق لـ ${unmatchedCustomers[0].customerName}`);
+      return;
+    }
+
+    const newInvoices: Invoice[] = parsedRows.map((r, index) => {
       const matchedCustomer = customers.find(
         (c) => c.name.toLowerCase() === r.customerName.toLowerCase()
       );
 
       return {
+        id: `inv-${Date.now()}-${index}`,
         invoiceNumber: r.invoiceNumber,
         axReference: r.axReference || undefined,
-        customerId: matchedCustomer ? matchedCustomer.id : 'cust-1',
+        customerId: matchedCustomer!.id,
         customerName: r.customerName,
         issueDate: r.issueDate,
         dueDate: r.dueDate,
         totalAmount: r.totalAmount,
+        paidAmount: 0,
+        remainingAmount: r.totalAmount,
+        status: 'unpaid',
+        daysOverdue: 0,
         description: r.description || undefined,
       };
     });
 
-    onImportInvoices(newInvoices);
-    setImportSuccessCount(newInvoices.length);
-    setTimeout(() => {
-      onClose();
-    }, 1200);
+    try {
+      await onImportInvoices(newInvoices);
+      setImportSuccessCount(newInvoices.length);
+      setTimeout(() => onClose(), 1200);
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : 'تعذر حفظ الفواتير المستوردة');
+    }
   };
 
   return (

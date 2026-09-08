@@ -32,6 +32,9 @@ interface SidebarProps {
   onCloseMobile: () => void;
   isCloudConnected?: boolean;
   companySettings?: CompanySettings;
+  customers?: { id: string; name: string; isSuspended?: boolean; creditLimit?: number; }[];
+  invoices?: { id: string; customerId: string; remainingAmount: number; status: string; daysOverdue?: number }[];
+  creditRequests?: { id: string; status: string }[];
 }
 
 interface NavSection {
@@ -52,6 +55,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
   isCloudConnected = true,
   companySettings,
+  customers = [],
+  invoices = [],
+  creditRequests = [],
 }) => {
   // Keep track of which accordion categories are open
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -69,6 +75,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       [id]: !prev[id]
     }));
   };
+
+  const overdueInvoiceCount = invoices.filter((invoice) => invoice.status === 'overdue' || (invoice.daysOverdue || 0) > 0).length;
+  const suspendedCustomersCount = customers.filter((customer) => customer.isSuspended).length;
+  const pendingApprovalCount = creditRequests.filter((request) => request.status === 'قيد المراجعة').length;
 
   const navSections: NavSection[] = [
     {
@@ -90,8 +100,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'credit_positions', title: 'المراكز الائتمانية' },
         { id: 'credit_requests', title: 'طلبات الائتمان' },
         { id: 'limit_increases', title: 'طلبات زيادة الحد' },
-        { id: 'credit_approvals', title: 'الموافقات', badge: 4 },
-        { id: 'suspended_customers', title: 'العملاء الموقوفون', badge: 5 },
+        { id: 'credit_approvals', title: 'الموافقات', badge: pendingApprovalCount },
+        { id: 'suspended_customers', title: 'العملاء الموقوفون', badge: suspendedCustomersCount },
       ]
     },
     {
@@ -102,7 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'invoices_list', title: 'الفواتير' },
         { id: 'customer_balances', title: 'أرصدة العملاء' },
         { id: 'debt_aging', title: 'أعمار الديون' },
-        { id: 'overdue_invoices', title: 'المتأخرات', badge: 23 },
+        { id: 'overdue_invoices', title: 'المتأخرات', badge: overdueInvoiceCount },
       ]
     },
     {
