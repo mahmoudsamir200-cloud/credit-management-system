@@ -1,6 +1,19 @@
-import React, { useState } from 'react';
-import { Receipt, Plus, Upload, AlertCircle, Building, Calendar, Image as ImageIcon, Eye, Trash2, CheckCircle2 } from 'lucide-react';
-import { Customer, Invoice } from '../types';
+import React, { useState, useEffect } from 'react';
+import { 
+  Receipt, 
+  Plus, 
+  Upload, 
+  AlertCircle, 
+  Building, 
+  Calendar, 
+  Image as ImageIcon, 
+  Eye, 
+  Trash2, 
+  CheckCircle2,
+  UserCheck,
+  Edit3
+} from 'lucide-react';
+import { Customer, Invoice, DEFAULT_AREA_MANAGERS, getDefaultAreaManagerForRegion } from '../types';
 import { processUploadFile, formatFileSize } from '../utils/fileHelper';
 
 interface NewInvoiceModalProps {
@@ -28,6 +41,14 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
   defaultDue.setDate(defaultDue.getDate() + 30);
   const [dueDate, setDueDate] = useState(defaultDue.toISOString().slice(0, 10));
   
+  // Area Manager state
+  const currentCustomer = customers.find((c) => c.id === customerId);
+  const [areaManager, setAreaManager] = useState<string>(() => {
+    return currentCustomer ? getDefaultAreaManagerForRegion(currentCustomer.region) : DEFAULT_AREA_MANAGERS[0];
+  });
+  const [isCustomAreaManager, setIsCustomAreaManager] = useState(false);
+  const [customAreaManagerName, setCustomAreaManagerName] = useState('');
+
   const [totalAmount, setTotalAmount] = useState<number | ''>('');
   const [description, setDescription] = useState('');
   const [attachmentName, setAttachmentName] = useState('');
@@ -45,15 +66,30 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
   const [newCustomerCreditLimit, setNewCustomerCreditLimit] = useState(200000);
 
+  // Sync default area manager if customer changes or loads
+  useEffect(() => {
+    if (customers.length > 0 && !customerId) {
+      setCustomerId(customers[0].id);
+      if (!isCustomAreaManager) {
+        setAreaManager(getDefaultAreaManagerForRegion(customers[0].region));
+      }
+    }
+  }, [customers, customerId, isCustomAreaManager]);
+
   if (!isOpen) return null;
 
   const handleCustomerChange = (id: string) => {
     setCustomerId(id);
     const cust = customers.find((c) => c.id === id);
-    if (cust && cust.paymentTermsDays) {
-      const newDue = new Date(issueDate);
-      newDue.setDate(newDue.getDate() + cust.paymentTermsDays);
-      setDueDate(newDue.toISOString().slice(0, 10));
+    if (cust) {
+      if (cust.paymentTermsDays) {
+        const newDue = new Date(issueDate);
+        newDue.setDate(newDue.getDate() + cust.paymentTermsDays);
+        setDueDate(newDue.toISOString().slice(0, 10));
+      }
+      if (!isCustomAreaManager) {
+        setAreaManager(getDefaultAreaManagerForRegion(cust.region));
+      }
     }
   };
 
@@ -75,6 +111,9 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
     };
     onQuickAddCustomer(newCust);
     setCustomerId(newCust.id);
+    if (!isCustomAreaManager) {
+      setAreaManager(getDefaultAreaManagerForRegion(newCust.region));
+    }
     setShowNewCustomerField(false);
     setNewCustomerName('');
     setError('');
@@ -125,6 +164,15 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
       return;
     }
 
+    const finalAreaManager = isCustomAreaManager 
+      ? customAreaManagerName.trim() 
+      : areaManager.trim();
+
+    if (!finalAreaManager) {
+      setError('يرجى تحديد أو إدخال مدير المنطقة المسؤول عن الفاتورة (حقل إلزامي لربط الفاتورة بالتقارير والبحث)');
+      return;
+    }
+
     const selectedCustomer = customers.find((c) => c.id === customerId);
 
     onAddInvoice({
@@ -132,6 +180,8 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
       axReference: axReference.trim() || undefined,
       customerId,
       customerName: selectedCustomer ? selectedCustomer.name : 'عميل غير محدد',
+      region: selectedCustomer?.region,
+      areaManager: finalAreaManager,
       issueDate,
       dueDate,
       totalAmount: Number(totalAmount),
@@ -267,6 +317,76 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
                     حفظ العميل واختياره
                   </button>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Area Manager Selection (Required) */}
+          <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/40 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-1.5 font-bold text-slate-800 text-xs">
+                <UserCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>مدير المنطقة المسؤول *</span>
+                <span className="text-[10px] text-blue-700 bg-blue-100/80 font-bold px-2 py-0.5 rounded-full">
+                  إلزامي للتقارير والبحث
+                </span>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCustomAreaManager(!isCustomAreaManager);
+                  setError('');
+                }}
+                className="text-[11px] text-blue-700 hover:text-blue-900 font-semibold flex items-center gap-1 hover:underline cursor-pointer"
+              >
+                <Edit3 className="w-3 h-3" />
+                <span>{isCustomAreaManager ? 'اختر من القائمة المعتمدة' : '+ كتابة اسم مدير مخصص'}</span>
+              </button>
+            </div>
+
+            {!isCustomAreaManager ? (
+              <div className="space-y-1">
+                <select
+                  value={areaManager}
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      setIsCustomAreaManager(true);
+                      setCustomAreaManagerName('');
+                    } else {
+                      setAreaManager(e.target.value);
+                    }
+                  }}
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 bg-white text-slate-900 font-semibold shadow-2xs"
+                >
+                  {DEFAULT_AREA_MANAGERS.map((mgr) => (
+                    <option key={mgr} value={mgr}>
+                      {mgr}
+                    </option>
+                  ))}
+                  <option value="__custom__">+ إدخال اسم مدير آخر يدويّاً...</option>
+                </select>
+                <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
+                  <span>تم التعيين تلقائياً بحسب منطقة العميل، ويمكنك تغييره أو كتابة اسم مخصص.</span>
+                  {currentCustomer?.region && (
+                    <span className="text-blue-700 font-semibold">منطقة العميل: {currentCustomer.region}</span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <input
+                  type="text"
+                  required
+                  placeholder="اكتب الاسم الكامل لمدير المنطقة (مثال: أ. محمد عبد السلام - مدير مبيعات القناة)"
+                  value={customAreaManagerName}
+                  onChange={(e) => setCustomAreaManagerName(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-blue-300 focus:ring-2 focus:ring-blue-500 bg-white text-slate-900 font-bold placeholder:font-normal placeholder:text-slate-400"
+                  autoFocus
+                />
+                <p className="text-[10px] text-blue-800">
+                  يمكنك البحث عن الفاتورة في أي شاشة أو تقرير بمجرد كتابة اسم هذا المدير فقط.
+                </p>
               </div>
             )}
           </div>

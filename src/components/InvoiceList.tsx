@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Search, 
   Filter, 
@@ -16,7 +16,9 @@ import {
   Image as ImageIcon,
   Upload,
   Download,
-  FileText
+  FileText,
+  UserCheck,
+  Scale
 } from 'lucide-react';
 import { Invoice, Customer } from '../types';
 import { formatCurrency } from '../utils/storage';
@@ -32,6 +34,8 @@ interface InvoiceListProps {
   onDeleteInvoice: (id: string) => void;
   onUpdateInvoice?: (invoice: Invoice) => void;
   initialCustomerFilter?: string;
+  onNavigateToAxReconciliation?: () => void;
+  onNavigateToCustomReport?: () => void;
 }
 
 export const InvoiceList: React.FC<InvoiceListProps> = ({
@@ -43,22 +47,38 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
   onDeleteInvoice,
   onUpdateInvoice,
   initialCustomerFilter = '',
+  onNavigateToAxReconciliation,
+  onNavigateToCustomReport,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [customerFilter, setCustomerFilter] = useState<string>(initialCustomerFilter);
+  const [areaManagerFilter, setAreaManagerFilter] = useState<string>('all');
   const [selectedInvoiceForDetails, setSelectedInvoiceForDetails] = useState<Invoice | null>(null);
   const [viewingAttachmentInvoice, setViewingAttachmentInvoice] = useState<Invoice | null>(null);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
 
+  // Extract unique Area Managers from existing invoices
+  const uniqueAreaManagers = useMemo(() => {
+    const set = new Set<string>();
+    invoices.forEach((inv) => {
+      if (inv.areaManager) set.add(inv.areaManager);
+    });
+    return Array.from(set).sort();
+  }, [invoices]);
+
   // Filter logic
   const filteredInvoices = invoices.filter((inv) => {
-    // Search query matches invoice #, AX ref, or customer name
+    // Search query matches invoice #, AX ref, customer name, or area manager
+    const query = searchQuery.trim().toLowerCase();
     const matchesSearch = 
-      inv.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (inv.axReference && inv.axReference.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      inv.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (inv.description && inv.description.toLowerCase().includes(searchQuery.toLowerCase()));
+      !query ||
+      inv.invoiceNumber.toLowerCase().includes(query) ||
+      (inv.axReference && inv.axReference.toLowerCase().includes(query)) ||
+      inv.customerName.toLowerCase().includes(query) ||
+      (inv.areaManager && inv.areaManager.toLowerCase().includes(query)) ||
+      (inv.region && inv.region.toLowerCase().includes(query)) ||
+      (inv.description && inv.description.toLowerCase().includes(query));
 
     // Status filter
     const matchesStatus = 
@@ -69,7 +89,13 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
     // Customer filter
     const matchesCustomer = !customerFilter || inv.customerId === customerFilter;
 
-    return matchesSearch && matchesStatus && matchesCustomer;
+    // Area Manager filter
+    const matchesAreaManager =
+      areaManagerFilter === 'all' ||
+      inv.areaManager === areaManagerFilter ||
+      (!inv.areaManager && areaManagerFilter === 'unassigned');
+
+    return matchesSearch && matchesStatus && matchesCustomer && matchesAreaManager;
   });
 
   // Calculate quick totals for filtered
@@ -88,7 +114,31 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {onNavigateToCustomReport && (
+            <button
+              id="btn-nav-to-custom-report"
+              onClick={onNavigateToCustomReport}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800 transition"
+              title="سحب تقرير مخصص وتحديد الأعمدة والفلاتر المطلوبة مع تصدير إكسيل"
+            >
+              <FileText className="w-4 h-4 text-purple-600" />
+              <span>سحب تقرير مخصص (الأعمدة والفلاتر)</span>
+            </button>
+          )}
+
+          {onNavigateToAxReconciliation && (
+            <button
+              id="btn-nav-to-ax-reconciliation"
+              onClick={onNavigateToAxReconciliation}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 transition"
+              title="مطابقة أرصدة العملاء مع شيت منظومة AX"
+            >
+              <Scale className="w-4 h-4 text-indigo-600" />
+              <span>مطابقة أرصدة AX</span>
+            </button>
+          )}
+
           <button
             id="btn-import-excel-invoices-view"
             onClick={onOpenImport}
@@ -111,7 +161,7 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
 
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-2xs space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           
           {/* Search Box */}
           <div className="relative">
@@ -121,9 +171,31 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="بحث برقم الفاتورة، مرجع AX، العميل..."
+              placeholder="بحث برقم الفاتورة، العميل، أو مدير المنطقة..."
               className="w-full pr-9 pl-3 py-2 text-xs rounded-lg border border-stone-300 focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500 text-stone-800"
             />
+          </div>
+
+          {/* Area Manager Filter */}
+          <div className="relative">
+            <select
+              id="select-manager-filter"
+              value={areaManagerFilter}
+              onChange={(e) => setAreaManagerFilter(e.target.value)}
+              className="w-full px-3 py-2 text-xs rounded-lg border border-stone-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-stone-800 bg-white"
+            >
+              <option value="all">جميع مديري المناطق ({invoices.length})</option>
+              {uniqueAreaManagers.map((mgr) => (
+                <option key={mgr} value={mgr}>
+                  {mgr} ({invoices.filter((i) => i.areaManager === mgr).length})
+                </option>
+              ))}
+              {invoices.some((i) => !i.areaManager) && (
+                <option value="unassigned">
+                  بدون مدير محدد ({invoices.filter((i) => !i.areaManager).length})
+                </option>
+              )}
+            </select>
           </div>
 
           {/* Status Filter */}
@@ -160,9 +232,23 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
 
         </div>
 
-        {/* Filter Summary Stats */}
-        <div className="flex flex-wrap items-center justify-between pt-2 border-t border-stone-100 text-xs text-stone-600">
-          <span>نتائج البحث: <strong className="text-stone-900">{filteredInvoices.length}</strong> فاتورة</span>
+        {/* Filter Summary Stats & Active Filters */}
+        <div className="flex flex-wrap items-center justify-between pt-2 border-t border-stone-100 text-xs text-stone-600 gap-2">
+          <div className="flex items-center gap-2">
+            <span>نتائج البحث: <strong className="text-stone-900">{filteredInvoices.length}</strong> فاتورة</span>
+            {areaManagerFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded text-[11px] font-semibold">
+                <span>تصفية المدير: {areaManagerFilter}</span>
+                <button
+                  type="button"
+                  onClick={() => setAreaManagerFilter('all')}
+                  className="text-blue-600 hover:text-blue-900 font-bold ml-1"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-4">
             <span>إجمالي المبالغ: <strong className="text-stone-900">{formatCurrency(totalAmountFiltered)}</strong></span>
             <span>المتبقي غير المسدد: <strong className="text-amber-700">{formatCurrency(totalRemainingFiltered)}</strong></span>
@@ -185,6 +271,7 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                 <tr>
                   <th className="font-semibold py-3 px-3">رقم الفاتورة</th>
                   <th className="font-semibold py-3 px-3">العميل</th>
+                  <th className="font-semibold py-3 px-3">مدير المنطقة</th>
                   <th className="font-semibold py-3 px-3">تاريخ الإصدار</th>
                   <th className="font-semibold py-3 px-3">تاريخ الاستحقاق</th>
                   <th className="font-semibold py-3 px-3">المبلغ الإجمالي</th>
@@ -235,6 +322,23 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                           <div className="text-[11px] text-stone-500 truncate max-w-[160px] mt-0.5">
                             {inv.description}
                           </div>
+                        )}
+                      </td>
+
+                      {/* Area Manager */}
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        {inv.areaManager ? (
+                          <button
+                            type="button"
+                            onClick={() => setAreaManagerFilter(inv.areaManager!)}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200/70 px-2 py-0.5 rounded-md transition cursor-pointer"
+                            title={`تصفية كل الفواتير الخاصة بـ: ${inv.areaManager}`}
+                          >
+                            <UserCheck className="w-3 h-3 text-blue-600 shrink-0" />
+                            <span className="truncate max-w-[140px]">{inv.areaManager}</span>
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-stone-400">غير محدد</span>
                         )}
                       </td>
 
@@ -385,6 +489,22 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
               <div>
                 <span className="text-stone-500 block">اسم العميل</span>
                 <span className="font-bold text-stone-900">{selectedInvoiceForDetails.customerName}</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-blue-50/60 border border-blue-100">
+                <div>
+                  <span className="text-slate-500 block text-[11px]">مدير المنطقة المسؤول</span>
+                  <span className="font-bold text-blue-950 flex items-center gap-1.5 mt-0.5">
+                    <UserCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <span>{selectedInvoiceForDetails.areaManager || 'غير محدد'}</span>
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[11px]">المنطقة الجغرافية</span>
+                  <span className="font-semibold text-slate-800 block mt-0.5">
+                    {selectedInvoiceForDetails.region || 'غير محددة'}
+                  </span>
+                </div>
               </div>
 
               {selectedInvoiceForDetails.description && (

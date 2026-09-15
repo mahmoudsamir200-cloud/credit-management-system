@@ -24,6 +24,11 @@ import {
   saveNotifications,
   loadCompanySettings,
   saveCompanySettings,
+  clearAllLocalStorage,
+  INITIAL_CREDIT_REQUESTS,
+  INITIAL_PROMISES_TO_PAY,
+  INITIAL_COLLECTION_TASKS,
+  INITIAL_NOTIFICATIONS,
 } from './utils/storage';
 import {
   subscribeToCustomers,
@@ -36,7 +41,9 @@ import {
   saveLogToCloud,
   deleteInvoiceFromCloud,
   batchImportInvoicesToCloud,
+  batchImportCustomersToCloud,
   clearAllCloudData,
+  seedDemoDataToCloud,
 } from './utils/firestoreService';
 import { testConnection } from './firebase';
 
@@ -47,14 +54,17 @@ import { InvoiceList } from './components/InvoiceList';
 import { PaymentModal } from './components/PaymentModal';
 import { NewInvoiceModal } from './components/NewInvoiceModal';
 import { ExcelImportModal } from './components/ExcelImportModal';
+import { NewCustomerModal } from './components/NewCustomerModal';
 import { CustomerLedger } from './components/CustomerLedger';
 import { CustomerProfile } from './components/CustomerProfile';
 import { AgingReport } from './components/AgingReport';
 import { PaymentList } from './components/PaymentList';
+import { AxReconciliationView } from './components/AxReconciliationView';
 import { ActivityLogView } from './components/ActivityLogView';
 import { CreditManagementView } from './components/CreditManagementView';
 import { CollectionsView } from './components/CollectionsView';
 import { ReportsView } from './components/ReportsView';
+import { CustomReportBuilder } from './components/CustomReportBuilder';
 import { AdminView } from './components/AdminView';
 
 export default function App() {
@@ -81,6 +91,7 @@ export default function App() {
   const [isSidebarOpenMobile, setIsSidebarOpenMobile] = useState(false);
 
   // Modals state
+  const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
   const [isNewInvoiceModalOpen, setIsNewInvoiceModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -421,14 +432,27 @@ export default function App() {
   // Clear and reset demo data
   const handleClearAllData = async () => {
     await clearAllCloudData();
+    clearAllLocalStorage();
     setCustomers([]);
     setInvoices([]);
     setPayments([]);
     setLogs([]);
+    setCreditRequests([]);
+    setPromisesToPay([]);
+    setCollectionTasks([]);
+    setNotifications([]);
   };
 
   const handleResetDemoData = async () => {
     await seedDemoDataToCloud();
+    setCreditRequests(INITIAL_CREDIT_REQUESTS);
+    setPromisesToPay(INITIAL_PROMISES_TO_PAY);
+    setCollectionTasks(INITIAL_COLLECTION_TASKS);
+    setNotifications(INITIAL_NOTIFICATIONS);
+    saveCreditRequests(INITIAL_CREDIT_REQUESTS);
+    savePromisesToPay(INITIAL_PROMISES_TO_PAY);
+    saveCollectionTasks(INITIAL_COLLECTION_TASKS);
+    saveNotifications(INITIAL_NOTIFICATIONS);
   };
 
   // Decide what main view component to display based on activeView
@@ -512,6 +536,27 @@ export default function App() {
             onDeleteInvoice={handleDeleteInvoice}
             onUpdateInvoice={handleUpdateInvoice}
             initialCustomerFilter={customerFilterForInvoices}
+            onNavigateToAxReconciliation={() => setActiveView('ax_reconciliation')}
+            onNavigateToCustomReport={() => setActiveView('report_custom_builder')}
+          />
+        );
+
+      case 'ax_reconciliation':
+        return (
+          <AxReconciliationView
+            customers={customers}
+            invoices={invoices}
+            onSelectCustomer={handleSelectCustomer}
+            onAddCustomersBatch={async (newCusts) => {
+              await batchImportCustomersToCloud(newCusts);
+              await saveLogToCloud({
+                id: `log-${Date.now()}`,
+                type: 'customer_added',
+                title: 'استيراد عملاء جدد من شيت AX',
+                details: `تم استيراد ${newCusts.length} عميل جديد من منظومة AX ومطابقة أرصدتهم بنجاح`,
+                timestamp: new Date().toISOString(),
+              });
+            }}
           />
         );
 
@@ -569,6 +614,16 @@ export default function App() {
           />
         );
 
+      case 'report_custom_builder':
+        return (
+          <CustomReportBuilder
+            customers={customers}
+            invoices={invoices}
+            payments={payments}
+            onSelectCustomer={handleSelectCustomer}
+          />
+        );
+
       case 'report_aging':
       case 'report_collection':
       case 'report_debt':
@@ -583,6 +638,7 @@ export default function App() {
             invoices={invoices}
             payments={payments}
             aging={aging}
+            onNavigateToCustomBuilder={() => setActiveView('report_custom_builder')}
           />
         );
 
@@ -595,10 +651,17 @@ export default function App() {
           <AdminView
             activeView={activeView}
             logs={logs}
+            customers={customers}
+            invoices={invoices}
+            payments={payments}
             onClearAllData={handleClearAllData}
             onResetDemoData={handleResetDemoData}
+            onOpenNewCustomer={() => setIsNewCustomerModalOpen(true)}
+            onOpenNewInvoice={() => setIsNewInvoiceModalOpen(true)}
+            onOpenImport={() => setIsImportModalOpen(true)}
             companySettings={companySettings}
             onUpdateCompanySettings={handleUpdateCompanySettings}
+            setActiveView={setActiveView}
           />
         );
 
@@ -632,6 +695,7 @@ export default function App() {
       <TopBar
         onToggleSidebar={() => setIsSidebarOpenMobile(!isSidebarOpenMobile)}
         notifications={notifications}
+        onOpenNewCustomer={() => setIsNewCustomerModalOpen(true)}
         onOpenNewInvoice={() => setIsNewInvoiceModalOpen(true)}
         onOpenPayment={() => {
           setSelectedInvoiceForPayment(null);
@@ -665,6 +729,12 @@ export default function App() {
       </div>
 
       {/* Modals */}
+      <NewCustomerModal
+        isOpen={isNewCustomerModalOpen}
+        onClose={() => setIsNewCustomerModalOpen(false)}
+        onAddCustomer={handleAddCustomer}
+      />
+
       <PaymentModal
         isOpen={isPaymentModalOpen}
         invoice={selectedInvoiceForPayment}

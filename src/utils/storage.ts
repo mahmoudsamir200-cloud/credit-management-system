@@ -26,6 +26,17 @@ import {
   INITIAL_NOTIFICATIONS
 } from '../data/mockData';
 
+export { 
+  INITIAL_CUSTOMERS, 
+  INITIAL_INVOICES, 
+  INITIAL_PAYMENTS, 
+  INITIAL_LOGS,
+  INITIAL_CREDIT_REQUESTS,
+  INITIAL_PROMISES_TO_PAY,
+  INITIAL_COLLECTION_TASKS,
+  INITIAL_NOTIFICATIONS
+};
+
 const STORAGE_KEYS = {
   CUSTOMERS: 'ar_system_customers_v2',
   INVOICES: 'ar_system_invoices_v2',
@@ -328,6 +339,8 @@ export function exportInvoicesToCSV(invoices: Invoice[]): void {
     'رقم الفاتورة',
     'مرجع AX',
     'اسم العميل',
+    'مدير المنطقة',
+    'المنطقة',
     'تاريخ الإصدار',
     'تاريخ الاستحقاق',
     'المبلغ الإجمالي',
@@ -342,6 +355,8 @@ export function exportInvoicesToCSV(invoices: Invoice[]): void {
     inv.invoiceNumber,
     inv.axReference || '',
     `"${inv.customerName.replace(/"/g, '""')}"`,
+    `"${(inv.areaManager || 'غير محدد').replace(/"/g, '""')}"`,
+    `"${(inv.region || '').replace(/"/g, '""')}"`,
     inv.issueDate,
     inv.dueDate,
     inv.totalAmount,
@@ -393,3 +408,20 @@ export function saveCompanySettings(settings: CompanySettings): void {
     console.error('Error saving company settings', e);
   }
 }
+
+export function clearAllLocalStorage(): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
+    localStorage.setItem(STORAGE_KEYS.CUSTOMERS, '[]');
+    localStorage.setItem(STORAGE_KEYS.INVOICES, '[]');
+    localStorage.setItem(STORAGE_KEYS.PAYMENTS, '[]');
+    localStorage.setItem(STORAGE_KEYS.LOGS, '[]');
+    localStorage.setItem(STORAGE_KEYS.CREDIT_REQUESTS, '[]');
+    localStorage.setItem(STORAGE_KEYS.PROMISES_TO_PAY, '[]');
+    localStorage.setItem(STORAGE_KEYS.COLLECTION_TASKS, '[]');
+    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, '[]');
+  } catch (e) {
+    console.error('Error clearing local storage', e);
+  }
+}
+

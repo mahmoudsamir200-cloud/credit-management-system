@@ -180,17 +180,38 @@ export async function batchImportInvoicesToCloud(invoices: Invoice[]): Promise<v
   }
 }
 
+export async function batchImportCustomersToCloud(newCustomers: Customer[]): Promise<void> {
+  try {
+    for (let i = 0; i < newCustomers.length; i += 400) {
+      const batch = writeBatch(db);
+      const chunk = newCustomers.slice(i, i + 400);
+      chunk.forEach((cust) => {
+        const ref = doc(db, 'customers', cust.id);
+        batch.set(ref, cust);
+      });
+      await batch.commit();
+    }
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'customers (batch)');
+  }
+}
+
 // Clear all collections on the cloud
 export async function clearAllCloudData(): Promise<void> {
   try {
     const collections = ['customers', 'invoices', 'payments', 'activityLogs'];
     for (const colName of collections) {
       const snap = await getDocs(collection(db, colName));
-      const batch = writeBatch(db);
-      snap.forEach((d) => {
-        batch.delete(d.ref);
-      });
-      await batch.commit();
+      if (snap.empty) continue;
+      const docs = snap.docs;
+      for (let i = 0; i < docs.length; i += 400) {
+        const batch = writeBatch(db);
+        const chunk = docs.slice(i, i + 400);
+        chunk.forEach((d) => {
+          batch.delete(d.ref);
+        });
+        await batch.commit();
+      }
     }
   } catch (err) {
     handleFirestoreError(err, OperationType.DELETE, 'all_collections');

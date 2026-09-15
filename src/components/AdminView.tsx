@@ -18,18 +18,32 @@ import {
   Building2,
   Upload,
   Image as ImageIcon,
-  RotateCcw
+  RotateCcw,
+  Trash2,
+  AlertTriangle,
+  UserPlus,
+  FileSpreadsheet,
+  FilePlus,
+  CheckCircle2,
+  Loader2,
 } from 'lucide-react';
-import { ActivityLog, ActiveNavView, CompanySettings } from '../types';
+import { Customer, Invoice, Payment, ActivityLog, ActiveNavView, CompanySettings } from '../types';
 import { DEFAULT_COMPANY_LOGO, DEFAULT_COMPANY_NAME, DEFAULT_COMPANY_NAME_AR } from '../utils/companyBranding';
 
 interface AdminViewProps {
   activeView: ActiveNavView;
   logs: ActivityLog[];
-  onClearAllData?: () => void;
-  onResetDemoData?: () => void;
+  customers?: Customer[];
+  invoices?: Invoice[];
+  payments?: Payment[];
+  onClearAllData?: () => Promise<void> | void;
+  onResetDemoData?: () => Promise<void> | void;
+  onOpenNewCustomer?: () => void;
+  onOpenNewInvoice?: () => void;
+  onOpenImport?: () => void;
   companySettings?: CompanySettings;
   onUpdateCompanySettings?: (settings: CompanySettings) => void;
+  setActiveView?: (view: ActiveNavView) => void;
 }
 
 interface SystemUser {
@@ -46,10 +60,17 @@ interface SystemUser {
 export const AdminView: React.FC<AdminViewProps> = ({
   activeView,
   logs = [],
+  customers = [],
+  invoices = [],
+  payments = [],
   onClearAllData,
   onResetDemoData,
+  onOpenNewCustomer,
+  onOpenNewInvoice,
+  onOpenImport,
   companySettings,
   onUpdateCompanySettings,
+  setActiveView,
 }) => {
   const [users, setUsers] = useState<SystemUser[]>([]);
 
@@ -58,6 +79,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [newUserRole, setNewUserRole] = useState('مسؤول تحصيل');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPhone, setNewUserPhone] = useState('');
+
+  // Clear & Reset Data States
+  const [showConfirmClearModal, setShowConfirmClearModal] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+  const [clearSuccessMessage, setClearSuccessMessage] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetSuccessMessage, setResetSuccessMessage] = useState(false);
 
   // Settings State
   const [gracePeriodDays, setGracePeriodDays] = useState(7);
@@ -153,6 +181,35 @@ export const AdminView: React.FC<AdminViewProps> = ({
     e.preventDefault();
     setSettingsSavedMessage(true);
     setTimeout(() => setSettingsSavedMessage(false), 3000);
+  };
+
+  const handleExecuteClear = async () => {
+    if (!onClearAllData) return;
+    try {
+      setIsClearing(true);
+      await onClearAllData();
+      setShowConfirmClearModal(false);
+      setClearSuccessMessage(true);
+      setTimeout(() => setClearSuccessMessage(false), 6000);
+    } catch (e) {
+      console.error('Error clearing data:', e);
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  const handleExecuteResetDemo = async () => {
+    if (!onResetDemoData) return;
+    try {
+      setIsResetting(true);
+      await onResetDemoData();
+      setResetSuccessMessage(true);
+      setTimeout(() => setResetSuccessMessage(false), 5000);
+    } catch (e) {
+      console.error('Error resetting demo data:', e);
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   const isAuditView = activeView === 'admin_audit_logs';
@@ -498,21 +555,229 @@ export const AdminView: React.FC<AdminViewProps> = ({
               >
                 حفظ التغييرات
               </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Card 3: Database & Demo Data Management */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                <Database className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">إدارة قاعدة البيانات ومسح البيانات التجريبية</h3>
+                <p className="text-[11px] text-slate-500">
+                  تفريغ النظام من البيانات الوهمية والتجريبية لبدء تسجيل وإدخال بياناتك وقوائم عملائك وفواتيرك الحقيقية
+                </p>
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 self-start sm:self-auto">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              قاعدة البيانات السحابية متصلة
+            </span>
+          </div>
+
+          {clearSuccessMessage && (
+            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-start gap-3 animate-fadeIn">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-extrabold text-sm">تم مسح وتصفير كافة البيانات بنجاح!</p>
+                <p className="text-emerald-700 font-normal">
+                  قاعدة البيانات الآن فارغة ونظيفة 100% وجاهزة لاستقبال بياناتك. يمكنك الآن البدء بإضافة أول عميل أو إصدار فاتورة أو استيراد ملف إكسيل.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {resetSuccessMessage && (
+            <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs font-bold flex items-center gap-2 animate-fadeIn">
+              <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>تم إعادة شحن البيانات التجريبية بنجاح لاختبار النظام.</span>
+            </div>
+          )}
+
+          {/* Live Data Summary Counters */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-right">
+              <div className="text-[11px] text-slate-500 font-medium">العملاء المسجلون</div>
+              <div className="text-xl font-bold text-slate-900 font-mono mt-0.5">{customers.length}</div>
+            </div>
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-right">
+              <div className="text-[11px] text-slate-500 font-medium">الفواتير المسجلة</div>
+              <div className="text-xl font-bold text-slate-900 font-mono mt-0.5">{invoices.length}</div>
+            </div>
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-right">
+              <div className="text-[11px] text-slate-500 font-medium">سندات التحصيل</div>
+              <div className="text-xl font-bold text-slate-900 font-mono mt-0.5">{payments.length}</div>
+            </div>
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-right">
+              <div className="text-[11px] text-slate-500 font-medium">سجلات التدقيق</div>
+              <div className="text-xl font-bold text-slate-900 font-mono mt-0.5">{logs.length}</div>
+            </div>
+          </div>
+
+          {/* Wipe Demo Data Callout */}
+          <div className="p-4 rounded-xl bg-red-50/80 border border-red-200 space-y-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h4 className="text-xs font-bold text-red-900">مسح البيانات التجريبية وتصفير النظام</h4>
+                <p className="text-[11px] text-red-700 leading-relaxed">
+                  هذا الخيار يمسح جميع العملاء التجريبيين، الفواتير، المقبوضات، وسجلات المتابعة نهائياً من السحابة والمتصفح لبدء إدخال بياناتك وقوائمك الفعلية من الصفر.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowConfirmClearModal(true)}
+                disabled={isClearing}
+                className="px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold shadow-xs transition flex items-center gap-2 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>مسح كافة البيانات التجريبية وبدء نظام جديد فارغ</span>
+              </button>
 
               {onResetDemoData && (
                 <button
                   type="button"
-                  onClick={onResetDemoData}
-                  className="px-4 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 font-semibold text-xs"
+                  onClick={handleExecuteResetDemo}
+                  disabled={isResetting}
+                  className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
+                  title="استرجاع البيانات التوضيحية للاختبار"
                 >
-                  إعادة تعيين البيانات للشاشة
+                  <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                  <span>إعادة شحن بيانات تجريبية للاختبار</span>
                 </button>
               )}
             </div>
-          </form>
+          </div>
+
+          {/* Fast Data Entry Launchpad */}
+          <div className="pt-3 border-t border-slate-200 space-y-3">
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-blue-600" />
+              <h4 className="text-xs font-bold text-slate-900">إدخال البيانات الجديدة الخاصة بك:</h4>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              استخدم الخيارات التالية لبدء إدخال بيانات مؤسستك الحقيقية وقوائمك المالية بكل سهولة:
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Option 1: Add New Customer */}
+              <button
+                type="button"
+                onClick={onOpenNewCustomer}
+                className="p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/60 transition text-right group space-y-2 bg-slate-50/60 cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="font-bold text-xs text-slate-900">إضافة عميل جديد</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">تسجيل عميل جديد، كود الحساب، والحد الائتماني</div>
+                </div>
+              </button>
+
+              {/* Option 2: New Invoice */}
+              <button
+                type="button"
+                onClick={onOpenNewInvoice}
+                className="p-3.5 rounded-xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/60 transition text-right group space-y-2 bg-slate-50/60 cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition">
+                  <FilePlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="font-bold text-xs text-slate-900">إصدار فاتورة جديدة</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">إنشاء فاتورة مبيعات آجل وتحديد تاريخ الاستحقاق</div>
+                </div>
+              </button>
+
+              {/* Option 3: Excel Import */}
+              <button
+                type="button"
+                onClick={onOpenImport}
+                className="p-3.5 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/60 transition text-right group space-y-2 bg-slate-50/60 cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="font-bold text-xs text-slate-900">استيراد إكسيل شامل</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">رفع وتحديث مئات الفواتير والعملاء من ملف Excel أو CSV</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
         </div>
       </div>
     )}
+
+      {/* Modal: Confirm Wipe All Data */}
+      {showConfirmClearModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 text-right border border-red-200">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
+              <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">تأكيد مسح كافة البيانات التجريبية</h3>
+                <p className="text-xs text-red-600 font-semibold">تحذير: هذا الإجراء نهائي ولا يمكن التراجع عنه</p>
+              </div>
+            </div>
+
+            <div className="space-y-2 text-xs text-slate-600 leading-relaxed">
+              <p>
+                أنت على وشك مسح وتصفير كافة البيانات المسجلة حالياً، بما في ذلك:
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-slate-700 font-medium pr-2">
+                <li>جميع سجلات العملاء ({customers.length} عميل)</li>
+                <li>كافة الفواتير ومطالبات الآجل ({invoices.length} فاتورة)</li>
+                <li>جميع سندات التحصيل والمقبوضات ({payments.length} سند)</li>
+                <li>سجلات التدقيق ومهام المتابعة ووعود السداد</li>
+              </ul>
+              <p className="text-slate-500 text-[11px] pt-1">
+                بعد المسح، ستصبح قاعدة البيانات نظيفة تماماً ومستعدة لاستقبال بياناتك الحقيقية.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowConfirmClearModal(false)}
+                disabled={isClearing}
+                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold text-xs"
+              >
+                إلغاء والتراجع
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteClear}
+                disabled={isClearing}
+                className="px-5 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                {isClearing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>جاري المسح...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>نعم، امسح وابدأ نظاماً جديداً</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: Add System User */}
       {showAddUserModal && (

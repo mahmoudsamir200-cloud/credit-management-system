@@ -53,6 +53,7 @@ export interface Invoice {
   customerId: string;
   customerName: string;
   region?: EgyptianRegion;
+  areaManager?: string; // اسم مدير المنطقة المسؤول عن الفاتورة
   issueDate: string;
   dueDate: string;
   totalAmount: number;
@@ -66,6 +67,32 @@ export interface Invoice {
   attachmentType?: string;
   daysOverdue?: number;
   isDueToday?: boolean;
+}
+
+export const DEFAULT_AREA_MANAGERS: string[] = [
+  'أحمد عبد الرحمن (منطقة القاهرة الكبرى)',
+  'محمد فاروق (منطقة الجيزة وأكتوبر)',
+  'طارق الشاذلي (منطقة الإسكندرية والساحل)',
+  'كريم ممدوح (منطقة الدلتا والوجه البحري)',
+  'هاني عبد الله (منطقة الصعيد والوجه القبلي)',
+  'محمود سليم (المشروعات والعملاء الاستراتيجيين)',
+];
+
+export function getDefaultAreaManagerForRegion(region?: EgyptianRegion | string): string {
+  switch (region) {
+    case 'القاهرة':
+      return 'أحمد عبد الرحمن (منطقة القاهرة الكبرى)';
+    case 'الجيزة':
+      return 'محمد فاروق (منطقة الجيزة وأكتوبر)';
+    case 'الإسكندرية':
+      return 'طارق الشاذلي (منطقة الإسكندرية والساحل)';
+    case 'الدلتا':
+      return 'كريم ممدوح (منطقة الدلتا والوجه البحري)';
+    case 'الصعيد':
+      return 'هاني عبد الله (منطقة الصعيد والوجه القبلي)';
+    default:
+      return 'أحمد عبد الرحمن (منطقة القاهرة الكبرى)';
+  }
 }
 
 export interface Payment {
@@ -180,6 +207,7 @@ export type ActiveNavView =
   // الحسابات المدينة
   | 'invoices_list'
   | 'customer_balances'
+  | 'ax_reconciliation'
   | 'debt_aging'
   | 'overdue_invoices'
   // التحصيل
@@ -189,6 +217,7 @@ export type ActiveNavView =
   | 'payments_list'
   | 'critical_overdue'
   // التقارير
+  | 'report_custom_builder'
   | 'report_aging'
   | 'report_collection'
   | 'report_debt'

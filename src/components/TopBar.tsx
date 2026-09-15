@@ -10,7 +10,8 @@ import {
   Info,
   LogOut,
   Settings as SettingsIcon,
-  Database
+  Database,
+  UserPlus
 } from 'lucide-react';
 import { SystemNotification, ActiveNavView, CompanySettings } from '../types';
 import { UniGroupLogo } from './UniGroupLogo';
@@ -18,6 +19,7 @@ import { UniGroupLogo } from './UniGroupLogo';
 interface TopBarProps {
   onToggleSidebar: () => void;
   notifications: SystemNotification[];
+  onOpenNewCustomer?: () => void;
   onOpenNewInvoice: () => void;
   onOpenPayment: () => void;
   setActiveView: (view: ActiveNavView) => void;
@@ -29,6 +31,7 @@ interface TopBarProps {
 export const TopBar: React.FC<TopBarProps> = ({
   onToggleSidebar,
   notifications = [],
+  onOpenNewCustomer,
   onOpenNewInvoice,
   onOpenPayment,
   setActiveView,
@@ -89,7 +92,19 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
 
         {/* Left Section: Actions, Notifications, User */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
+
+          {/* Quick Action: New Customer */}
+          {onOpenNewCustomer && (
+            <button
+              onClick={onOpenNewCustomer}
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition"
+              title="تسجيل عميل جديد"
+            >
+              <UserPlus className="w-3.5 h-3.5 text-blue-400" />
+              <span>عميل جديد</span>
+            </button>
+          )}
           
           {/* Quick Action: New Invoice */}
           <button
@@ -238,18 +253,16 @@ export const TopBar: React.FC<TopBarProps> = ({
                       <span>إعادة تعيين البيانات للشاشة</span>
                     </button>
                   )}
-                  {onClearAllData && (
-                    <button
-                      onClick={() => {
-                        onClearAllData();
-                        setIsProfileOpen(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-red-950/40 rounded-lg transition text-right"
-                    >
-                      <LogOut className="w-4 h-4 text-red-400" />
-                      <span>تفريغ كل البيانات السحابية</span>
-                    </button>
-                  )}
+                  <button
+                    onClick={() => {
+                      setActiveView('admin_settings');
+                      setIsProfileOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-400 hover:bg-rose-950/40 rounded-lg transition text-right"
+                  >
+                    <Database className="w-4 h-4 text-rose-400" />
+                    <span>مسح البيانات التجريبية وإعدادات النظام</span>
+                  </button>
                 </div>
               </div>
             )}

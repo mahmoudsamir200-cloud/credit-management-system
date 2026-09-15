@@ -6,7 +6,8 @@ import {
   CreditApprovalRequest, 
   PromiseToPay, 
   CollectionTask,
-  SystemNotification 
+  SystemNotification,
+  getDefaultAreaManagerForRegion
 } from '../types';
 
 export const INITIAL_CUSTOMERS: Customer[] = [
@@ -195,7 +196,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
   }
 ];
 
-export const INITIAL_INVOICES: Invoice[] = [
+const INITIAL_INVOICES_RAW: Invoice[] = [
   // مستحقة اليوم (Matches Today Due list in screenshot: Total 4,850,000 ج.م)
   {
     id: 'inv-1042',
@@ -423,6 +424,11 @@ export const INITIAL_INVOICES: Invoice[] = [
     description: 'شحنة مستلزمات طباعة وتغليف',
   }
 ];
+
+export const INITIAL_INVOICES: Invoice[] = INITIAL_INVOICES_RAW.map((inv) => ({
+  ...inv,
+  areaManager: inv.areaManager || getDefaultAreaManagerForRegion(inv.region),
+}));
 
 export const INITIAL_PAYMENTS: Payment[] = [
   {

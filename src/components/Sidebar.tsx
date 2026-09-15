@@ -111,6 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { id: 'invoices_list', title: 'الفواتير' },
         { id: 'customer_balances', title: 'أرصدة العملاء' },
+        { id: 'ax_reconciliation', title: 'مطابقة أرصدة AX' },
         { id: 'debt_aging', title: 'أعمار الديون' },
         { id: 'overdue_invoices', title: 'المتأخرات', badge: overdueInvoiceCount },
       ]
@@ -132,6 +133,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'التقارير',
       icon: BarChart3,
       items: [
+        { id: 'report_custom_builder', title: 'مُنشئ ومُخصص التقارير (Custom)' },
         { id: 'report_aging', title: 'تقرير أعمار الديون' },
         { id: 'report_collection', title: 'تقرير التحصيل' },
         { id: 'report_debt', title: 'تقرير المديونية' },

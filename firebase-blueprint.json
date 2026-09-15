@@ -32,6 +32,7 @@
         "issueDate": { "type": "string" },
         "dueDate": { "type": "string" },
         "status": { "type": "string", "enum": ["paid", "partial", "unpaid", "overdue"] },
+        "areaManager": { "type": "string" },
         "notes": { "type": "string" },
         "attachmentName": { "type": "string" },
         "createdAt": { "type": "string" }
